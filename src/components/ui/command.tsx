@@ -1,6 +1,5 @@
 import * as React from "react"
 import { Command as CommandPrimitive } from "cmdk"
-import { SearchIcon } from "lucide-react"
 
 import { cn } from "#/lib/utils"
 import {
@@ -67,7 +66,7 @@ function CommandInput({
       data-slot="command-input-wrapper"
       className="flex h-9 items-center gap-2 border-b px-3"
     >
-      <SearchIcon className="size-4 shrink-0 opacity-50" />
+      <span className="material-symbols-outlined text-[16px] shrink-0 opacity-50">search</span>
       <CommandPrimitive.Input
         data-slot="command-input"
         className={cn(
