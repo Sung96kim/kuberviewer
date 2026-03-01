@@ -1,5 +1,5 @@
-import type { KubeConfig } from '@kubernetes/client-node'
 import { KubeManager } from './manager'
+import { kubeRequest } from './fetch'
 import type { ResourceDefinition, ResourceGroup } from './types'
 
 const WORKLOAD_KINDS = new Set([
@@ -39,7 +39,7 @@ function getGroupLabel(resource: ResourceDefinition): string {
   if (WORKLOAD_KINDS.has(resource.kind)) return 'Workloads'
   if (NETWORKING_KINDS.has(resource.kind)) return 'Networking'
   if (STORAGE_KINDS.has(resource.kind)) return 'Storage'
-  if (CONFIG_KINDS.has(resource.kind)) return 'Configuration'
+  if (CONFIG_KINDS.has(resource.kind)) return 'Config'
   if (resource.group && !resource.group.endsWith('.k8s.io')) return 'Custom Resources'
   return 'Other'
 }
@@ -57,7 +57,7 @@ export function groupResources(resources: ResourceDefinition[]): ResourceGroup[]
     }
   }
 
-  const order = ['Workloads', 'Networking', 'Storage', 'Configuration', 'Custom Resources', 'Other']
+  const order = ['Workloads', 'Networking', 'Storage', 'Config', 'Custom Resources', 'Other']
   return order
     .filter((label) => groups.has(label))
     .map((label) => ({ label, resources: groups.get(label)! }))
@@ -74,26 +74,6 @@ type APIResourceResponse = {
     shortNames?: string[]
     categories?: string[]
   }>
-}
-
-async function fetchJSON<T>(kubeConfig: KubeConfig, path: string): Promise<T> {
-  const cluster = kubeConfig.getCurrentCluster()
-  if (!cluster) {
-    throw new Error('No active cluster found in kubeconfig')
-  }
-  const url = `${cluster.server}${path}`
-  const fetchOpts = await kubeConfig.applyToFetchOptions({} as Parameters<typeof kubeConfig.applyToFetchOptions>[0])
-  const response = await fetch(url, {
-    ...fetchOpts,
-    headers: {
-      ...(fetchOpts.headers as Record<string, string> | undefined),
-      Accept: 'application/json',
-    },
-  })
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`)
-  }
-  return response.json() as Promise<T>
 }
 
 function parseResources(
@@ -131,15 +111,15 @@ export async function discoverAPIs(): Promise<ResourceDefinition[]> {
   const kubeConfig = manager.getKubeConfig()
   const resources: ResourceDefinition[] = []
 
-  const coreData = await fetchJSON<APIResourceResponse>(kubeConfig, '/api/v1')
+  const coreData = await kubeRequest<APIResourceResponse>(kubeConfig, '/api/v1')
   resources.push(...parseResources(coreData, '', 'v1'))
 
-  const groupsData = await fetchJSON<APIGroupListResponse>(kubeConfig, '/apis')
+  const groupsData = await kubeRequest<APIGroupListResponse>(kubeConfig, '/apis')
   const groupFetches = groupsData.groups.map(async (g) => {
     const gv = g.preferredVersion.groupVersion
     const version = g.preferredVersion.version
     try {
-      const data = await fetchJSON<APIResourceResponse>(kubeConfig, `/apis/${gv}`)
+      const data = await kubeRequest<APIResourceResponse>(kubeConfig, `/apis/${gv}`)
       return parseResources(data, g.name, version)
     } catch {
       return []

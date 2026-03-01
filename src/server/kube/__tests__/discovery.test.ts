@@ -59,7 +59,7 @@ describe('groupResources', () => {
     ]
     const groups = groupResources(resources)
     expect(groups).toHaveLength(1)
-    expect(groups[0].label).toBe('Configuration')
+    expect(groups[0].label).toBe('Config')
     expect(groups[0].resources).toHaveLength(3)
   })
 
@@ -105,7 +105,7 @@ describe('groupResources', () => {
       'Workloads',
       'Networking',
       'Storage',
-      'Configuration',
+      'Config',
       'Custom Resources',
       'Other',
     ])

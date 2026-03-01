@@ -2,14 +2,12 @@ import {
   KubeConfig,
   CoreV1Api,
   CustomObjectsApi,
-  ApisApi,
 } from '@kubernetes/client-node'
 import type { ContextInfo } from './types'
 
 type ClientSet = {
   coreV1: CoreV1Api
   customObjects: CustomObjectsApi
-  apisApi: ApisApi
 }
 
 export class KubeManager {
@@ -62,10 +60,6 @@ export class KubeManager {
     return this.getClients().customObjects
   }
 
-  getApisApi(): ApisApi {
-    return this.getClients().apisApi
-  }
-
   private getClients(): ClientSet {
     const context = this.getCurrentContext()
     let clients = this.clientCache.get(context)
@@ -73,7 +67,6 @@ export class KubeManager {
       clients = {
         coreV1: this.kubeConfig.makeApiClient(CoreV1Api),
         customObjects: this.kubeConfig.makeApiClient(CustomObjectsApi),
-        apisApi: this.kubeConfig.makeApiClient(ApisApi),
       }
       this.clientCache.set(context, clients)
     }

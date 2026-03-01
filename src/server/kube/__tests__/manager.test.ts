@@ -18,7 +18,6 @@ vi.mock('@kubernetes/client-node', () => {
   }
   return {
     KubeConfig: vi.fn(() => mockKubeConfig),
-    ApisApi: class {},
     CoreV1Api: class {},
     CustomObjectsApi: class {},
   }
@@ -64,7 +63,6 @@ describe('KubeManager', () => {
     const manager = KubeManager.getInstance()
     expect(manager.getCoreV1Api()).toBeDefined()
     expect(manager.getCustomObjectsApi()).toBeDefined()
-    expect(manager.getApisApi()).toBeDefined()
   })
 
   it('caches clients for the same context', () => {
