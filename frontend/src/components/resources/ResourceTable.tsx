@@ -1,4 +1,4 @@
-import { useState, useMemo, memo } from 'react'
+import { useState, useMemo, useEffect, memo } from 'react'
 import {
   useReactTable,
   getCoreRowModel,
@@ -28,6 +28,8 @@ type ResourceTableProps = {
   onRowClick?: (item: KubeItem) => void
   groupByColumn?: string
   getGroupAggregate?: (rows: Row<KubeItem>[]) => GroupAggregate
+  onExpandedChange?: (hasExpanded: boolean) => void
+  renderRowAction?: (item: KubeItem) => React.ReactNode
 }
 
 function TableSkeleton({ columnCount }: { columnCount: number }) {
@@ -137,7 +139,7 @@ function GroupHeaderRow({
   )
 }
 
-export const ResourceTable = memo(function ResourceTable({ data, columns, isLoading, onRowClick, groupByColumn, getGroupAggregate }: ResourceTableProps) {
+export const ResourceTable = memo(function ResourceTable({ data, columns, isLoading, onRowClick, groupByColumn, getGroupAggregate, onExpandedChange, renderRowAction }: ResourceTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [expanded, setExpanded] = useState<ExpandedState>({})
@@ -182,6 +184,12 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
       },
     },
   })
+
+  useEffect(() => {
+    if (!onExpandedChange) return
+    const hasExpanded = expanded === true || (typeof expanded === 'object' && Object.values(expanded).some(Boolean))
+    onExpandedChange(hasExpanded)
+  }, [expanded, onExpandedChange])
 
   if (isLoading) {
     return (
@@ -248,6 +256,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                     </th>
                   )
                 })}
+                {renderRowAction && <th className="px-6 py-4 w-10" />}
               </tr>
             ))}
           </thead>
@@ -308,6 +317,11 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                         </td>
                       )
                     })}
+                    {renderRowAction && (
+                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                        {renderRowAction(row.original)}
+                      </td>
+                    )}
                   </tr>
                 )
               })

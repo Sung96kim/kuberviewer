@@ -1,9 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useResourceList } from '#/hooks/use-resource-list'
 import { relativeTime } from '#/lib/time'
 import { Skeleton } from '#/components/ui/skeleton'
-import { QueryError } from '#/components/QueryError'
 
 export const Route = createFileRoute('/')({ component: ClusterOverview })
 
@@ -198,7 +197,7 @@ function NodesCard({ data, isLoading, isError }: { data: KubeListResponse | unde
   const percentage = total > 0 ? Math.round((ready / total) * 100) : 0
 
   return (
-    <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm">
+    <Link to="/nodes" className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-blue-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-blue-500/10 transition-all duration-200 cursor-pointer">
       <div className="flex items-center justify-between mb-4">
         <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
           <span className="material-symbols-outlined">dns</span>
@@ -217,7 +216,7 @@ function NodesCard({ data, isLoading, isError }: { data: KubeListResponse | unde
       <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
         <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
       </div>
-    </div>
+    </Link>
   )
 }
 
@@ -231,7 +230,7 @@ function PodsCard({ data, isLoading, isError }: { data: KubeListResponse | undef
   const failedPct = total > 0 ? (failed / total) * 100 : 0
 
   return (
-    <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm">
+    <Link to="/resources/$" params={{ _splat: 'v1/pods' }} className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-200 cursor-pointer">
       <div className="flex items-center justify-between mb-4">
         <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
           <span className="material-symbols-outlined">deployed_code</span>
@@ -259,7 +258,7 @@ function PodsCard({ data, isLoading, isError }: { data: KubeListResponse | undef
         <span>Pending</span>
         <span>Failed</span>
       </div>
-    </div>
+    </Link>
   )
 }
 
@@ -270,7 +269,7 @@ function CpuCard({ data, isLoading, isError }: { data: KubeListResponse | undefi
   const { totalCpuCores } = getNodeResourceInfo(data)
 
   return (
-    <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm">
+    <Link to="/nodes" className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-orange-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-200 cursor-pointer">
       <div className="flex items-center justify-between mb-4">
         <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
           <span className="material-symbols-outlined">memory</span>
@@ -285,7 +284,7 @@ function CpuCard({ data, isLoading, isError }: { data: KubeListResponse | undefi
       <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
         <div className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full" style={{ width: '100%' }} />
       </div>
-    </div>
+    </Link>
   )
 }
 
@@ -296,7 +295,7 @@ function MemoryCard({ data, isLoading, isError }: { data: KubeListResponse | und
   const { totalMemoryGiB } = getNodeResourceInfo(data)
 
   return (
-    <div className="bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm">
+    <Link to="/nodes" className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-pink-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-pink-500/10 transition-all duration-200 cursor-pointer">
       <div className="flex items-center justify-between mb-4">
         <div className="p-2 rounded-lg bg-pink-500/10 text-pink-500">
           <span className="material-symbols-outlined">hard_drive</span>
@@ -311,7 +310,7 @@ function MemoryCard({ data, isLoading, isError }: { data: KubeListResponse | und
       <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
         <div className="h-full bg-gradient-to-r from-pink-400 to-pink-600 rounded-full" style={{ width: '100%' }} />
       </div>
-    </div>
+    </Link>
   )
 }
 
@@ -346,6 +345,9 @@ function RecentEventsTable({ data, isLoading, isError }: { data: KubeListRespons
     <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
       <div className="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
         <h3 className="text-lg font-bold">Recent Events</h3>
+        <Link to="/events" className="text-sm text-primary hover:text-primary/80 font-medium transition-colors">
+          View All Events
+        </Link>
       </div>
       {isError ? (
         <div className="p-8 text-center text-red-400">

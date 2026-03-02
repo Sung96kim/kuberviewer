@@ -5,6 +5,9 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
+  build: {
+    sourcemap: true,
+  },
   plugins: [
     TanStackRouterVite({
       routesDirectory: './src/routes',

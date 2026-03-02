@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.kube.manager import KubeManager
-from app.routers import contexts, discovery, resources
+from app.routers import contexts, discovery, exec, logs, resources, watch
 
 
 @asynccontextmanager
@@ -27,4 +27,7 @@ app.add_middleware(
 
 app.include_router(contexts.router)
 app.include_router(discovery.router)
+app.include_router(exec.router)
+app.include_router(logs.router)
 app.include_router(resources.router)
+app.include_router(watch.router)

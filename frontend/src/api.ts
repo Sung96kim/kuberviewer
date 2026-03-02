@@ -1,7 +1,34 @@
 import type { ContextInfo, ResourceDefinition, ResourceGroup } from '#/types'
 
 const BASE_URL = '/api'
-const REQUEST_TIMEOUT_MS = 30_000
+const REQUEST_TIMEOUT_MS = 5_000
+
+export class ApiError extends Error {
+  status: number
+  reason: string
+  detail: string
+
+  constructor(status: number, body: string) {
+    let reason = 'Error'
+    let detail = body
+
+    try {
+      const parsed = JSON.parse(body)
+      const k8s = parsed?.detail
+      if (k8s?.message) {
+        detail = k8s.message
+        reason = k8s.reason ?? `HTTP ${status}`
+      }
+    } catch {
+      // not JSON
+    }
+
+    super(detail)
+    this.status = status
+    this.reason = reason
+    this.detail = detail
+  }
+}
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const controller = new AbortController()
@@ -20,7 +47,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     })
     if (!res.ok) {
       const text = await res.text().catch(() => 'Unknown error')
-      throw new Error(`HTTP ${res.status}: ${text}`)
+      throw new ApiError(res.status, text)
     }
     return res.json() as Promise<T>
   } catch (err) {
@@ -106,6 +133,20 @@ export const api = {
     body: unknown
   }) =>
     request<Record<string, unknown>>('/resources/apply', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  patchResource: (body: {
+    group: string
+    version: string
+    name: string
+    namespaced: boolean
+    namespace?: string
+    resourceName?: string
+    body: unknown
+  }) =>
+    request<Record<string, unknown>>('/resources/patch', {
       method: 'POST',
       body: JSON.stringify(body),
     }),

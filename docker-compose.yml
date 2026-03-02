@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile.frontend
     ports:
       - "3000:80"
+      - "3443:443"
     depends_on:
       - backend
 

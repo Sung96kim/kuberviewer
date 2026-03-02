@@ -387,6 +387,281 @@ function serviceColumns(): ColumnDef<KubeItem>[] {
   ]
 }
 
+function statefulSetColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'ready',
+      accessorFn: (row) => {
+        const status = getStatus<{ readyReplicas?: number }>(row)
+        const spec = row.spec as { replicas?: number } | undefined
+        return `${status.readyReplicas ?? 0}/${spec?.replicas ?? 0}`
+      },
+      header: 'Ready',
+      enableSorting: false,
+    },
+    ageColumn(),
+  ]
+}
+
+function daemonSetColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'desired',
+      accessorFn: (row) => getStatus<{ desiredNumberScheduled?: number }>(row).desiredNumberScheduled ?? 0,
+      header: 'Desired',
+      enableSorting: true,
+    },
+    {
+      id: 'current',
+      accessorFn: (row) => getStatus<{ currentNumberScheduled?: number }>(row).currentNumberScheduled ?? 0,
+      header: 'Current',
+      enableSorting: true,
+    },
+    {
+      id: 'ready',
+      accessorFn: (row) => getStatus<{ numberReady?: number }>(row).numberReady ?? 0,
+      header: 'Ready',
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
+function jobColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'completions',
+      accessorFn: (row) => {
+        const status = getStatus<{ succeeded?: number }>(row)
+        const spec = row.spec as { completions?: number } | undefined
+        return `${status.succeeded ?? 0}/${spec?.completions ?? 1}`
+      },
+      header: 'Completions',
+      enableSorting: false,
+    },
+    {
+      id: 'status',
+      accessorFn: (row) => {
+        const status = getStatus<{ active?: number; succeeded?: number; failed?: number; conditions?: Array<{ type: string; status: string }> }>(row)
+        if (status.conditions?.some((c) => c.type === 'Complete' && c.status === 'True')) return 'Complete'
+        if (status.conditions?.some((c) => c.type === 'Failed' && c.status === 'True')) return 'Failed'
+        if ((status.active ?? 0) > 0) return 'Running'
+        return 'Unknown'
+      },
+      header: 'Status',
+      meta: { isStatus: true },
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
+function cronJobColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'schedule',
+      accessorFn: (row) => (row.spec as { schedule?: string } | undefined)?.schedule ?? '-',
+      header: 'Schedule',
+      enableSorting: false,
+    },
+    {
+      id: 'suspended',
+      accessorFn: (row) => (row.spec as { suspend?: boolean } | undefined)?.suspend ? 'Yes' : 'No',
+      header: 'Suspend',
+      enableSorting: true,
+    },
+    {
+      id: 'active',
+      accessorFn: (row) => ((row.status as { active?: unknown[] } | undefined)?.active ?? []).length,
+      header: 'Active',
+      enableSorting: true,
+    },
+    {
+      id: 'lastSchedule',
+      accessorFn: (row) => (row.status as { lastScheduleTime?: string } | undefined)?.lastScheduleTime ?? '',
+      header: 'Last Schedule',
+      cell: (info) => {
+        const ts = info.getValue() as string
+        return ts ? relativeTime(ts) : '-'
+      },
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
+function configMapColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'keys',
+      accessorFn: (row) => Object.keys((row.data ?? {}) as Record<string, unknown>).length,
+      header: 'Data Keys',
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
+function secretColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'type',
+      accessorFn: (row) => (row as { type?: string }).type ?? 'Opaque',
+      header: 'Type',
+      enableSorting: true,
+    },
+    {
+      id: 'keys',
+      accessorFn: (row) => Object.keys((row.data ?? {}) as Record<string, unknown>).length,
+      header: 'Data Keys',
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
+function ingressColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'class',
+      accessorFn: (row) => (row.spec as { ingressClassName?: string } | undefined)?.ingressClassName ?? '-',
+      header: 'Class',
+      enableSorting: true,
+    },
+    {
+      id: 'hosts',
+      accessorFn: (row) => {
+        const rules = (row.spec as { rules?: Array<{ host?: string }> } | undefined)?.rules ?? []
+        return rules.map((r) => r.host ?? '*').join(', ') || '-'
+      },
+      header: 'Hosts',
+      enableSorting: false,
+    },
+    ageColumn(),
+  ]
+}
+
+function pvcColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'status',
+      accessorFn: (row) => getStatus<{ phase?: string }>(row).phase ?? 'Unknown',
+      header: 'Status',
+      meta: { isStatus: true },
+      enableSorting: true,
+    },
+    {
+      id: 'capacity',
+      accessorFn: (row) => {
+        const status = getStatus<{ capacity?: { storage?: string } }>(row)
+        return status.capacity?.storage ?? '-'
+      },
+      header: 'Capacity',
+      enableSorting: false,
+    },
+    {
+      id: 'storageClass',
+      accessorFn: (row) => (row.spec as { storageClassName?: string } | undefined)?.storageClassName ?? '-',
+      header: 'Storage Class',
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
+function nodeColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    {
+      id: 'status',
+      accessorFn: (row) => {
+        const conditions = (getStatus<{ conditions?: Array<{ type: string; status: string }> }>(row).conditions ?? [])
+        const ready = conditions.find((c) => c.type === 'Ready')
+        return ready?.status === 'True' ? 'Ready' : 'NotReady'
+      },
+      header: 'Status',
+      meta: { isStatus: true },
+      enableSorting: true,
+    },
+    {
+      id: 'roles',
+      accessorFn: (row) => {
+        const meta = (row.metadata ?? {}) as { labels?: Record<string, string> }
+        const labels = meta.labels ?? {}
+        return Object.keys(labels)
+          .filter((k) => k.startsWith('node-role.kubernetes.io/'))
+          .map((k) => k.replace('node-role.kubernetes.io/', ''))
+          .join(', ') || '<none>'
+      },
+      header: 'Roles',
+      enableSorting: false,
+    },
+    {
+      id: 'version',
+      accessorFn: (row) => (getStatus<{ nodeInfo?: { kubeletVersion?: string } }>(row).nodeInfo?.kubeletVersion ?? '-'),
+      header: 'Version',
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
+function namespaceColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    {
+      id: 'status',
+      accessorFn: (row) => getStatus<{ phase?: string }>(row).phase ?? 'Unknown',
+      header: 'Status',
+      meta: { isStatus: true },
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
+function replicaSetColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'desired',
+      accessorFn: (row) => (row.spec as { replicas?: number } | undefined)?.replicas ?? 0,
+      header: 'Desired',
+      enableSorting: true,
+    },
+    {
+      id: 'current',
+      accessorFn: (row) => getStatus<{ replicas?: number }>(row).replicas ?? 0,
+      header: 'Current',
+      enableSorting: true,
+    },
+    {
+      id: 'ready',
+      accessorFn: (row) => getStatus<{ readyReplicas?: number }>(row).readyReplicas ?? 0,
+      header: 'Ready',
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
 function defaultColumns(): ColumnDef<KubeItem>[] {
   return [nameColumn(), namespaceColumn(), ageColumn()]
 }
@@ -394,7 +669,18 @@ function defaultColumns(): ColumnDef<KubeItem>[] {
 const KIND_COLUMN_MAP: Record<string, () => ColumnDef<KubeItem>[]> = {
   Pod: podColumns,
   Deployment: deploymentColumns,
+  StatefulSet: statefulSetColumns,
+  DaemonSet: daemonSetColumns,
+  ReplicaSet: replicaSetColumns,
+  Job: jobColumns,
+  CronJob: cronJobColumns,
   Service: serviceColumns,
+  Ingress: ingressColumns,
+  ConfigMap: configMapColumns,
+  Secret: secretColumns,
+  PersistentVolumeClaim: pvcColumns,
+  Node: nodeColumns,
+  Namespace: namespaceColumns,
 }
 
 export function getColumnsForKind(kind: string): ColumnDef<KubeItem>[] {

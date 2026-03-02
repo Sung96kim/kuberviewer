@@ -15,6 +15,9 @@ backend/.python-version
 # IDE
 .vscode
 
+# Certs
+certs/
+
 # Misc
 *.local
 todos.json

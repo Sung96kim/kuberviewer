@@ -1,5 +1,7 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { Link, useNavigate } from '@tanstack/react-router'
 import { useContexts, useSwitchContext } from '#/hooks/use-contexts'
+import { useTheme } from '#/hooks/use-theme'
 import {
   Popover,
   PopoverContent,
@@ -15,22 +17,32 @@ import {
 } from '#/components/ui/command'
 
 export function Header() {
+  const navigate = useNavigate()
   const { data: contextData } = useContexts()
   const switchContext = useSwitchContext()
+  const { theme, toggleTheme } = useTheme()
   const [open, setOpen] = useState(false)
+  const [searchValue, setSearchValue] = useState('')
 
   const currentContext = contextData?.current
   const contexts = contextData?.contexts ?? []
 
+  const handleSearch = useCallback((e: React.FormEvent) => {
+    e.preventDefault()
+    const q = searchValue.trim()
+    if (!q) return
+    navigate({ to: '/search', search: { q } })
+  }, [searchValue, navigate])
+
   return (
-    <header className="h-16 flex items-center justify-between border-b border-border-dark bg-surface-dark px-6 shrink-0 z-20">
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-3">
-          <div className="size-8 text-primary flex items-center justify-center">
+    <header className="h-16 flex items-center border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-6 shrink-0 z-20">
+      <div className="flex items-center gap-4 shrink-0">
+        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+          <div className="size-8 text-blue-500 flex items-center justify-center">
             <span className="material-symbols-outlined text-[28px]">hexagon</span>
           </div>
           <h1 className="text-xl font-bold tracking-tight font-display">KuberViewer</h1>
-        </div>
+        </Link>
 
         {currentContext && (
           <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
@@ -45,10 +57,36 @@ export function Header() {
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex-1 flex justify-center px-8">
+        <form onSubmit={handleSearch} className="w-full max-w-md">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-slate-400 pointer-events-none">
+              search
+            </span>
+            <input
+              type="text"
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              placeholder="Search pods, services, deployments..."
+              className="w-full pl-10 pr-10 py-2 bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-colors"
+            />
+            {searchValue && (
+              <button
+                type="button"
+                onClick={() => setSearchValue('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      <div className="flex items-center gap-4 shrink-0">
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <button className="hidden sm:flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border-dark bg-background-dark hover:bg-slate-800 transition-colors min-w-[180px]">
+            <button className="hidden sm:flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors min-w-[180px]">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[20px]">dns</span>
                 <span className="text-sm font-medium">{currentContext ?? 'No context'}</span>
@@ -86,19 +124,22 @@ export function Header() {
         </Popover>
 
         <div className="flex items-center gap-2">
-          <button className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors">
-            <span className="material-symbols-outlined">search</span>
-          </button>
-          <button className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors">
+          <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors">
             <span className="material-symbols-outlined">notifications</span>
           </button>
-          <button className="p-2 rounded-lg hover:bg-slate-800 text-slate-400 transition-colors">
-            <span className="material-symbols-outlined">dark_mode</span>
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            <span className="material-symbols-outlined">
+              {theme === 'dark' ? 'light_mode' : 'dark_mode'}
+            </span>
           </button>
         </div>
 
-        <div className="h-9 w-9 rounded-full bg-gradient-to-tr from-primary to-purple-500 p-[2px] cursor-pointer">
-          <div className="h-full w-full rounded-full bg-surface-dark flex items-center justify-center">
+        <div className="h-9 w-9 rounded-full bg-linear-to-tr from-primary to-purple-500 p-[2px] cursor-pointer">
+          <div className="h-full w-full rounded-full bg-surface-light dark:bg-surface-dark flex items-center justify-center">
             <span className="font-bold text-xs text-primary">K8</span>
           </div>
         </div>

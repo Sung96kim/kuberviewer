@@ -9,12 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SearchRouteImport } from './routes/search'
 import { Route as NodesRouteImport } from './routes/nodes'
 import { Route as NamespacesRouteImport } from './routes/namespaces'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResourcesSplatRouteImport } from './routes/resources.$'
+import { Route as NodesNameRouteImport } from './routes/nodes_.$name'
+import { Route as NamespacesNameRouteImport } from './routes/namespaces_.$name'
 
+const SearchRoute = SearchRouteImport.update({
+  id: '/search',
+  path: '/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const NodesRoute = NodesRouteImport.update({
   id: '/nodes',
   path: '/nodes',
@@ -40,12 +48,25 @@ const ResourcesSplatRoute = ResourcesSplatRouteImport.update({
   path: '/resources/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const NodesNameRoute = NodesNameRouteImport.update({
+  id: '/nodes_/$name',
+  path: '/nodes/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NamespacesNameRoute = NamespacesNameRouteImport.update({
+  id: '/namespaces_/$name',
+  path: '/namespaces/$name',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/events': typeof EventsRoute
   '/namespaces': typeof NamespacesRoute
   '/nodes': typeof NodesRoute
+  '/search': typeof SearchRoute
+  '/namespaces/$name': typeof NamespacesNameRoute
+  '/nodes/$name': typeof NodesNameRoute
   '/resources/$': typeof ResourcesSplatRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +74,9 @@ export interface FileRoutesByTo {
   '/events': typeof EventsRoute
   '/namespaces': typeof NamespacesRoute
   '/nodes': typeof NodesRoute
+  '/search': typeof SearchRoute
+  '/namespaces/$name': typeof NamespacesNameRoute
+  '/nodes/$name': typeof NodesNameRoute
   '/resources/$': typeof ResourcesSplatRoute
 }
 export interface FileRoutesById {
@@ -61,14 +85,42 @@ export interface FileRoutesById {
   '/events': typeof EventsRoute
   '/namespaces': typeof NamespacesRoute
   '/nodes': typeof NodesRoute
+  '/search': typeof SearchRoute
+  '/namespaces_/$name': typeof NamespacesNameRoute
+  '/nodes_/$name': typeof NodesNameRoute
   '/resources/$': typeof ResourcesSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/events' | '/namespaces' | '/nodes' | '/resources/$'
+  fullPaths:
+    | '/'
+    | '/events'
+    | '/namespaces'
+    | '/nodes'
+    | '/search'
+    | '/namespaces/$name'
+    | '/nodes/$name'
+    | '/resources/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/events' | '/namespaces' | '/nodes' | '/resources/$'
-  id: '__root__' | '/' | '/events' | '/namespaces' | '/nodes' | '/resources/$'
+  to:
+    | '/'
+    | '/events'
+    | '/namespaces'
+    | '/nodes'
+    | '/search'
+    | '/namespaces/$name'
+    | '/nodes/$name'
+    | '/resources/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/events'
+    | '/namespaces'
+    | '/nodes'
+    | '/search'
+    | '/namespaces_/$name'
+    | '/nodes_/$name'
+    | '/resources/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,11 +128,21 @@ export interface RootRouteChildren {
   EventsRoute: typeof EventsRoute
   NamespacesRoute: typeof NamespacesRoute
   NodesRoute: typeof NodesRoute
+  SearchRoute: typeof SearchRoute
+  NamespacesNameRoute: typeof NamespacesNameRoute
+  NodesNameRoute: typeof NodesNameRoute
   ResourcesSplatRoute: typeof ResourcesSplatRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/search': {
+      id: '/search'
+      path: '/search'
+      fullPath: '/search'
+      preLoaderRoute: typeof SearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/nodes': {
       id: '/nodes'
       path: '/nodes'
@@ -116,6 +178,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ResourcesSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/nodes_/$name': {
+      id: '/nodes_/$name'
+      path: '/nodes/$name'
+      fullPath: '/nodes/$name'
+      preLoaderRoute: typeof NodesNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/namespaces_/$name': {
+      id: '/namespaces_/$name'
+      path: '/namespaces/$name'
+      fullPath: '/namespaces/$name'
+      preLoaderRoute: typeof NamespacesNameRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -124,6 +200,9 @@ const rootRouteChildren: RootRouteChildren = {
   EventsRoute: EventsRoute,
   NamespacesRoute: NamespacesRoute,
   NodesRoute: NodesRoute,
+  SearchRoute: SearchRoute,
+  NamespacesNameRoute: NamespacesNameRoute,
+  NodesNameRoute: NodesNameRoute,
   ResourcesSplatRoute: ResourcesSplatRoute,
 }
 export const routeTree = rootRouteImport

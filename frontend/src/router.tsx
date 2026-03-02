@@ -8,7 +8,7 @@ export function getQueryClient() {
       queries: {
         staleTime: 30_000,
         refetchOnWindowFocus: false,
-        retry: 2,
+        retry: 5,
         retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
       },
     },

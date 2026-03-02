@@ -2,7 +2,9 @@ import asyncio
 import json
 from typing import Any
 
+from fastapi import HTTPException
 from kubernetes import client
+from kubernetes.client.exceptions import ApiException
 
 from app.kube.manager import KubeManager
 
@@ -28,17 +30,25 @@ def _kube_request(
     body: dict[str, Any] | None = None,
     query_params: list[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
-    response = api_client.call_api(
-        path,
-        method,
-        query_params=query_params or [],
-        body=body,
-        response_type="object",
-        auth_settings=["BearerToken"],
-        _preload_content=False,
-    )
-    data = response[0].read()
-    return json.loads(data)
+    try:
+        response = api_client.call_api(
+            path,
+            method,
+            query_params=query_params or [],
+            body=body,
+            response_type="object",
+            auth_settings=["BearerToken"],
+            _preload_content=False,
+        )
+        data = response[0].read()
+        return json.loads(data)
+    except ApiException as e:
+        detail = e.body if e.body else e.reason
+        try:
+            detail = json.loads(detail)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        raise HTTPException(status_code=e.status, detail=detail)
 
 
 async def list_resources(
@@ -107,3 +117,45 @@ async def apply_resource(
     path = build_resource_url(group, version, name, namespaced, namespace, resource_name)
     method = "PUT" if resource_name else "POST"
     return await asyncio.to_thread(_kube_request, api_client, path, method, body=body)
+
+
+def _kube_patch(
+    api_client: client.ApiClient,
+    path: str,
+    body: dict[str, Any],
+    content_type: str = "application/strategic-merge-patch+json",
+) -> dict[str, Any]:
+    try:
+        response = api_client.call_api(
+            path,
+            "PATCH",
+            query_params=[],
+            body=body,
+            response_type="object",
+            auth_settings=["BearerToken"],
+            _preload_content=False,
+            header_params={"Content-Type": content_type},
+        )
+        data = response[0].read()
+        return json.loads(data)
+    except ApiException as e:
+        detail = e.body if e.body else e.reason
+        try:
+            detail = json.loads(detail)
+        except (json.JSONDecodeError, TypeError):
+            pass
+        raise HTTPException(status_code=e.status, detail=detail)
+
+
+async def patch_resource(
+    group: str,
+    version: str,
+    name: str,
+    namespaced: bool,
+    body: dict[str, Any],
+    namespace: str | None = None,
+    resource_name: str | None = None,
+) -> dict[str, Any]:
+    api_client = KubeManager.get_instance().get_api_client()
+    path = build_resource_url(group, version, name, namespaced, namespace, resource_name)
+    return await asyncio.to_thread(_kube_patch, api_client, path, body)

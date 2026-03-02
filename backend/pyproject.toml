@@ -9,4 +9,5 @@ dependencies = [
     "pydantic>=2.12.5",
     "pydantic-settings>=2.13.1",
     "uvicorn[standard]>=0.41.0",
+    "websocket-client>=1.8.0",
 ]

@@ -19,10 +19,19 @@ import {
   CommandItem,
   CommandList,
 } from '#/components/ui/command'
+import { Breadcrumb } from '#/components/layout/Breadcrumb'
+import { PodInspectModal } from '#/components/detail-tabs/PodInspectModal'
 import type { ResourceDefinition } from '#/types'
 import type { Row } from '@tanstack/react-table'
 
-export const Route = createFileRoute('/resources/$')({ component: ResourceSplatPage })
+type SearchParams = { ns?: string }
+
+export const Route = createFileRoute('/resources/$')({
+  component: ResourceSplatPage,
+  validateSearch: (search: Record<string, unknown>): SearchParams => ({
+    ns: typeof search.ns === 'string' ? search.ns : undefined,
+  }),
+})
 
 type KubeItem = Record<string, unknown>
 
@@ -47,6 +56,7 @@ function findResourceDefinition(
 
 function ResourceSplatPage() {
   const params = useParams({ from: '/resources/$' })
+  const { ns } = Route.useSearch()
   const splatPath = (params as Record<string, string>)._splat ?? ''
   const parsed = parseResourcePath(splatPath)
 
@@ -70,13 +80,14 @@ function ResourceSplatPage() {
     return <ResourceDetailPage group={parsed.group} version={parsed.version} resourceName={parsed.resourceName} namespace={parsed.namespace} name={parsed.name} />
   }
 
-  return <ResourceListView group={parsed.group} version={parsed.version} resourceName={parsed.resourceName} />
+  return <ResourceListView group={parsed.group} version={parsed.version} resourceName={parsed.resourceName} filterNamespace={ns} />
 }
 
 type ResourceListViewProps = {
   group: string
   version: string
   resourceName: string
+  filterNamespace?: string
 }
 
 function getPodGroupAggregate(rows: Row<KubeItem>[]) {
@@ -144,9 +155,11 @@ function NamespaceFilter({
   )
 }
 
-function ResourceListView({ group, version, resourceName }: ResourceListViewProps) {
+function ResourceListView({ group, version, resourceName, filterNamespace }: ResourceListViewProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const [hasExpandedRows, setHasExpandedRows] = useState(false)
+  const [inspectPod, setInspectPod] = useState<{ namespace: string; name: string } | null>(null)
   const { data: apiData, isLoading: apiLoading } = useAPIResources()
   const allResources = apiData?.resources ?? []
 
@@ -156,13 +169,16 @@ function ResourceListView({ group, version, resourceName }: ResourceListViewProp
 
   const kind = resourceDef?.kind ?? ''
   const isPod = kind === 'Pod'
+  const isNamespaced = resourceDef?.namespaced ?? true
 
   const listQuery = useResourceList({
     group,
     version,
     name: resourceName,
-    namespaced: resourceDef?.namespaced ?? true,
+    namespaced: isNamespaced,
+    namespace: filterNamespace,
     limit: isPod ? 2000 : undefined,
+    watch: hasExpandedRows,
   })
   const columns = useMemo(() => getColumnsForKind(kind), [kind])
 
@@ -194,13 +210,29 @@ function ResourceListView({ group, version, resourceName }: ResourceListViewProp
   }, [isPod, selectedNamespaces, allNamespaces])
 
   const items = useMemo(() => {
-    if (!isPod || !effectiveNamespaces) return allItems
+    if (!isPod) return allItems
+    if (filterNamespace) return precomputePodRows(allItems)
+    if (!effectiveNamespaces) return allItems
     const filtered = allItems.filter((item) => {
       const ns = ((item.metadata ?? {}) as { namespace?: string }).namespace
       return ns ? effectiveNamespaces.has(ns) : false
     })
     return precomputePodRows(filtered)
-  }, [allItems, isPod, effectiveNamespaces])
+  }, [allItems, isPod, effectiveNamespaces, filterNamespace])
+
+  const renderPodAction = useCallback((item: KubeItem) => {
+    const metadata = item.metadata as { name?: string; namespace?: string } | undefined
+    if (!metadata?.name || !metadata?.namespace) return null
+    return (
+      <button
+        onClick={() => setInspectPod({ namespace: metadata.namespace!, name: metadata.name! })}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-slate-400 hover:text-primary hover:bg-primary/10 transition-colors"
+        title="Inspect pod"
+      >
+        <span className="material-symbols-outlined text-[16px]">visibility</span>
+      </button>
+    )
+  }, [])
 
   const handleToggleNamespace = useCallback((ns: string) => {
     setSelectedNamespaces((prev) => {
@@ -234,8 +266,20 @@ function ResourceListView({ group, version, resourceName }: ResourceListViewProp
     })
   }, [group, version, resourceName, navigate])
 
+  const breadcrumbs = useMemo(() => {
+    const items: Array<{ label: string; href?: string }> = [
+      { label: 'Cluster', href: '/' },
+    ]
+    if (filterNamespace) {
+      items.push({ label: filterNamespace, href: `/namespaces_/${filterNamespace}` })
+    }
+    items.push({ label: kind || resourceName })
+    return items
+  }, [kind, resourceName, filterNamespace])
+
   return (
     <div className="max-w-7xl mx-auto space-y-6">
+      <Breadcrumb items={breadcrumbs} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -253,7 +297,20 @@ function ResourceListView({ group, version, resourceName }: ResourceListViewProp
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {isPod && allNamespaces.length > 0 && (
+          {filterNamespace && (
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-primary/30 bg-primary/10 text-sm">
+              <span className="material-symbols-outlined text-[16px] text-primary">folder</span>
+              <span className="font-medium text-primary">{filterNamespace}</span>
+              <button
+                onClick={() => navigate({ to: '/resources/$', params: { _splat: `${group ? `${group}/` : ''}${version}/${resourceName}` }, search: {} })}
+                className="ml-1 p-0.5 rounded hover:bg-primary/20 text-primary/60 hover:text-primary transition-colors"
+                title="Show all namespaces"
+              >
+                <span className="material-symbols-outlined text-[14px]">close</span>
+              </button>
+            </div>
+          )}
+          {isPod && !filterNamespace && allNamespaces.length > 0 && (
             <NamespaceFilter
               allNamespaces={allNamespaces}
               selected={effectiveNamespaces ?? new Set()}
@@ -300,7 +357,18 @@ function ResourceListView({ group, version, resourceName }: ResourceListViewProp
         onRowClick={handleRowClick}
         groupByColumn={isPod ? 'podPrefix' : undefined}
         getGroupAggregate={isPod ? getPodGroupAggregate : undefined}
+        onExpandedChange={setHasExpandedRows}
+        renderRowAction={isPod ? renderPodAction : undefined}
       />
+      )}
+
+      {inspectPod && (
+        <PodInspectModal
+          open={!!inspectPod}
+          onOpenChange={(open) => { if (!open) setInspectPod(null) }}
+          namespace={inspectPod.namespace}
+          podName={inspectPod.name}
+        />
       )}
     </div>
   )
@@ -322,10 +390,21 @@ function ResourceDetailPage({ group, version, resourceName, namespace, name }: R
     return findResourceDefinition(allResources, group, version, resourceName)
   }, [allResources, group, version, resourceName])
 
+  const kind = resourceDef?.kind ?? resourceName
   const namespaced = resourceDef?.namespaced ?? !!namespace
+  const groupVersion = group ? `${group}/${version}` : version
+  const listSplat = `${groupVersion}/${resourceName}`
+
+  const breadcrumbs = useMemo(() => [
+    { label: 'Cluster', href: '/' },
+    { label: kind, href: `/resources/${listSplat}` },
+    ...(namespace ? [{ label: namespace }] : []),
+    { label: name },
+  ], [kind, listSplat, namespace, name])
 
   return (
     <div className="max-w-7xl mx-auto">
+      <Breadcrumb items={breadcrumbs} />
       <ResourceDetail
         group={group}
         version={version}

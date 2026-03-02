@@ -91,3 +91,16 @@ async def apply_resource(req: ApplyResourceRequest) -> dict[str, Any]:
         namespace=req.namespace,
         resource_name=req.resource_name,
     )
+
+
+@router.post("/patch")
+async def patch_resource(req: ApplyResourceRequest) -> dict[str, Any]:
+    return await kube_resources.patch_resource(
+        group=req.group,
+        version=req.version,
+        name=req.name,
+        namespaced=req.namespaced,
+        body=req.body,
+        namespace=req.namespace,
+        resource_name=req.resource_name,
+    )
