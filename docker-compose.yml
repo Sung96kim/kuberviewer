@@ -1,0 +1,19 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    volumes:
+      - ${KUBECONFIG:-${HOME}/.kube/config}:/root/.kube/config:ro
+      - ${HOME}/.kube/cache:/root/.kube/cache
+    environment:
+      - KUBERVIEWER_LOG_LEVEL=info
