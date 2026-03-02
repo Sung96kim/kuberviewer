@@ -1,0 +1,23 @@
+FROM python:3.12-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl unzip ca-certificates && \
+    KUBE_VERSION=$(curl -Ls https://dl.k8s.io/release/stable.txt) && \
+    curl -Lo /usr/local/bin/kubectl "https://dl.k8s.io/release/${KUBE_VERSION}/bin/linux/amd64/kubectl" && \
+    chmod +x /usr/local/bin/kubectl && \
+    curl -Lo /tmp/kubelogin.zip https://github.com/int128/kubelogin/releases/latest/download/kubelogin_linux_amd64.zip && \
+    unzip /tmp/kubelogin.zip -d /tmp && \
+    mv /tmp/kubelogin /usr/local/bin/kubectl-oidc_login && \
+    chmod +x /usr/local/bin/kubectl-oidc_login && \
+    rm -rf /tmp/kubelogin* && \
+    apt-get purge -y curl unzip && \
+    apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+COPY backend/pyproject.toml backend/uv.lock ./
+RUN uv sync --frozen --no-dev
+COPY backend/ .
+EXPOSE 8000
+CMD ["uv", "run", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

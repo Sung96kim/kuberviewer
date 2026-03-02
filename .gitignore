@@ -1,13 +1,23 @@
-node_modules
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/.tanstack
+frontend/.env
+
+# Backend
+**/__pycache__
+backend/.venv
+backend/.python-version
+
+# OS
 .DS_Store
-dist
-dist-ssr
+
+# IDE
+.vscode
+
+# Certs
+certs/
+
+# Misc
 *.local
-.env
-.nitro
-.tanstack
-.wrangler
-.output
-.vinxi
-__unconfig*
 todos.json
