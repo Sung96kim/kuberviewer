@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.kube.manager import KubeManager, OIDCAuthRequired
-from app.routers import auth, contexts, discovery, exec, logs, resources, watch
+from app.routers import auth, cluster, contexts, discovery, exec, logs, resources, watch
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ async def oidc_auth_required_handler(_request: Request, exc: OIDCAuthRequired) -
 
 
 app.include_router(auth.router)
+app.include_router(cluster.router)
 app.include_router(contexts.router)
 app.include_router(discovery.router)
 app.include_router(exec.router)

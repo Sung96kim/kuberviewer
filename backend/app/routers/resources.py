@@ -9,10 +9,13 @@ router = APIRouter(prefix="/api/resources", tags=["resources"])
 
 
 def _strip_managed_fields(data: dict[str, Any]) -> dict[str, Any]:
+    metadata = data.get("metadata")
+    if isinstance(metadata, dict):
+        metadata.pop("managedFields", None)
     for item in data.get("items", []):
-        metadata = item.get("metadata")
-        if isinstance(metadata, dict):
-            metadata.pop("managedFields", None)
+        item_meta = item.get("metadata")
+        if isinstance(item_meta, dict):
+            item_meta.pop("managedFields", None)
     return data
 
 
@@ -51,7 +54,7 @@ async def get_resource(
     namespace: str | None = Query(None),
     resource_name: str = Query(..., alias="resourceName"),
 ) -> dict[str, Any]:
-    return await kube_resources.get_resource(
+    data = await kube_resources.get_resource(
         group=group,
         version=version,
         name=name,
@@ -59,6 +62,7 @@ async def get_resource(
         namespace=namespace,
         resource_name=resource_name,
     )
+    return _strip_managed_fields(data)
 
 
 @router.delete("/delete")

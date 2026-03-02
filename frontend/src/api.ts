@@ -79,7 +79,15 @@ function toQueryString(params: Record<string, string | number | boolean | undefi
   ).toString()
 }
 
+export type ClusterHealthResponse = {
+  nodes: { total: number; ready: number }
+  pods: { total: number; running: number }
+}
+
 export const api = {
+  clusterHealth: () =>
+    request<ClusterHealthResponse>('/cluster/health'),
+
   getContexts: () =>
     request<{ contexts: ContextInfo[]; current: string }>('/contexts'),
 

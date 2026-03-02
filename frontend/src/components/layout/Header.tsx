@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useContexts, useSwitchContext } from '#/hooks/use-contexts'
 import { useTheme } from '#/hooks/use-theme'
@@ -23,6 +23,7 @@ export function Header() {
   const { theme, toggleTheme } = useTheme()
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
+  const listRef = useRef<HTMLDivElement>(null)
 
   const currentContext = contextData?.current
   const contexts = contextData?.contexts ?? []
@@ -96,8 +97,15 @@ export function Header() {
           </PopoverTrigger>
           <PopoverContent align="end" className="w-[400px] max-w-[90vw] p-0">
             <Command>
-              <CommandInput placeholder="Search contexts..." />
-              <CommandList>
+              <CommandInput
+                placeholder="Search contexts..."
+                onValueChange={() => {
+                  requestAnimationFrame(() => {
+                    listRef.current?.scrollTo({ top: 0 })
+                  })
+                }}
+              />
+              <CommandList ref={listRef}>
                 <CommandEmpty>No contexts found.</CommandEmpty>
                 <CommandGroup heading="Cluster Context">
                   {contexts.map((ctx) => (
