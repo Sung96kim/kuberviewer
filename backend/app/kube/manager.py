@@ -9,10 +9,14 @@ from kubernetes import client, config
 from kubernetes.client import ApiClient, Configuration
 
 from app.config import get_settings
-from app.kube.oidc import get_oidc_token_for_exec
+from app.kube.oidc import extract_oidc_params, get_oidc_token_for_exec
 from app.models import ContextInfo
 
 logger = logging.getLogger(__name__)
+
+
+class OIDCAuthRequired(Exception):
+    pass
 
 
 class KubeManager:
@@ -111,6 +115,9 @@ class KubeManager:
     def _is_token_expired(self) -> bool:
         return self._token_expiry > 0 and time.time() > self._token_expiry - 30
 
+    def _uses_oidc_exec(self) -> bool:
+        return self.get_oidc_params() is not None
+
     def _ensure_client(self) -> client.ApiClient:
         if self._api_client is not None and self._is_token_expired():
             logger.info("OIDC token expiring, refreshing client")
@@ -120,6 +127,11 @@ class KubeManager:
             oidc_client = self._try_oidc_client()
             if oidc_client:
                 self._api_client = oidc_client
+            elif self._uses_oidc_exec():
+                raise OIDCAuthRequired(
+                    "OIDC token expired and refresh failed. "
+                    "Visit http://localhost:8000/api/auth/login to re-authenticate."
+                )
             else:
                 self._api_client = config.new_client_from_config(
                     config_file=self._config_file, context=self._current_context
@@ -148,6 +160,19 @@ class KubeManager:
 
     def set_context(self, name: str) -> None:
         self._load_contexts(context=name)
+
+    def get_oidc_params(self) -> dict[str, str] | None:
+        ctx_info = self._find_context_info(self._current_context)
+        if not ctx_info:
+            return None
+        user_config = self._find_raw_user(ctx_info["user"])
+        if not user_config or "exec" not in user_config:
+            return None
+        return extract_oidc_params(user_config["exec"])
+
+    def reset_client(self) -> None:
+        self._api_client = None
+        self._token_expiry = 0
 
     def get_api_client(self) -> client.ApiClient:
         return self._ensure_client()

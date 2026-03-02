@@ -4,8 +4,8 @@ services:
       context: .
       dockerfile: Dockerfile.frontend
     ports:
-      - "3000:80"
-      - "3443:443"
+      - "127.0.0.1:3000:80"
+      - "127.0.0.1:3443:443"
     depends_on:
       - backend
 
@@ -13,6 +13,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.backend
+    ports:
+      - "127.0.0.1:8000:8000"
     volumes:
       - ${KUBECONFIG:-${HOME}/.kube/config}:/root/.kube/config:ro
       - ${HOME}/.kube/cache:/root/.kube/cache

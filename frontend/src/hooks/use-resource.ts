@@ -14,6 +14,6 @@ export function useResource(params: ResourceParams) {
   return useQuery({
     queryKey: ['resource', params.group, params.version, params.name, params.namespace, params.resourceName],
     queryFn: () => api.getResource(params),
-    refetchInterval: 5_000,
+    refetchInterval: 15_000,
   })
 }

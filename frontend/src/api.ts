@@ -1,7 +1,7 @@
 import type { ContextInfo, ResourceDefinition, ResourceGroup } from '#/types'
 
 const BASE_URL = '/api'
-const REQUEST_TIMEOUT_MS = 5_000
+const REQUEST_TIMEOUT_MS = 30_000
 
 export class ApiError extends Error {
   status: number
@@ -47,6 +47,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     })
     if (!res.ok) {
       const text = await res.text().catch(() => 'Unknown error')
+      if (res.status === 401) {
+        try {
+          const parsed = JSON.parse(text)
+          if (parsed.error === 'oidc_auth_required' && parsed.login_url) {
+            window.open(parsed.login_url, '_blank')
+          }
+        } catch {
+          // not JSON
+        }
+      }
       throw new ApiError(res.status, text)
     }
     return res.json() as Promise<T>

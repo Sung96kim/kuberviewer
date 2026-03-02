@@ -37,7 +37,7 @@ export function Header() {
   return (
     <header className="h-16 flex items-center border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-6 shrink-0 z-20">
       <div className="flex items-center gap-4 shrink-0">
-        <Link to="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+        <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="size-8 text-blue-500 flex items-center justify-center">
             <span className="material-symbols-outlined text-[28px]">hexagon</span>
           </div>

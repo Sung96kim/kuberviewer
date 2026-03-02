@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useResource } from '#/hooks/use-resource'
 import { api, ApiError } from '#/api'
 import { relativeTime } from '#/lib/time'
@@ -135,6 +136,56 @@ function getContainerNames(resource: KubeResource): string[] {
   return names
 }
 
+type OwnerReference = {
+  apiVersion: string
+  kind: string
+  name: string
+  uid: string
+  controller?: boolean
+}
+
+const KIND_TO_PLURAL: Record<string, string> = {
+  Deployment: 'deployments',
+  ReplicaSet: 'replicasets',
+  StatefulSet: 'statefulsets',
+  DaemonSet: 'daemonsets',
+  Job: 'jobs',
+  CronJob: 'cronjobs',
+}
+
+function getOwnerInfo(resource: KubeResource): { kind: string; name: string; splat: string } | null {
+  const meta = resource.metadata as Record<string, unknown> | undefined
+  const ownerRefs = meta?.ownerReferences as OwnerReference[] | undefined
+  if (!ownerRefs?.length) return null
+
+  const controller = ownerRefs.find((ref) => ref.controller) ?? ownerRefs[0]
+  const namespace = resource.metadata?.namespace
+
+  if (controller.kind === 'ReplicaSet') {
+    const podTemplateHash = resource.metadata?.labels?.['pod-template-hash']
+    if (podTemplateHash && controller.name.endsWith(`-${podTemplateHash}`)) {
+      const deployName = controller.name.slice(0, -(podTemplateHash.length + 1))
+      const splat = namespace
+        ? `apps/v1/deployments/${namespace}/${deployName}`
+        : `apps/v1/deployments/${deployName}`
+      return { kind: 'Deployment', name: deployName, splat }
+    }
+  }
+
+  const plural = KIND_TO_PLURAL[controller.kind]
+  if (!plural) return null
+
+  const slash = controller.apiVersion.indexOf('/')
+  const group = slash === -1 ? '' : controller.apiVersion.slice(0, slash)
+  const version = slash === -1 ? controller.apiVersion : controller.apiVersion.slice(slash + 1)
+  const groupVersion = group ? `${group}/${version}` : version
+  const splat = namespace
+    ? `${groupVersion}/${plural}/${namespace}/${controller.name}`
+    : `${groupVersion}/${plural}/${controller.name}`
+
+  return { kind: controller.kind, name: controller.name, splat }
+}
+
 export function ResourceDetail({ group, version, resourceType, name, namespaced, namespace }: ResourceDetailProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
   const { openSession } = useTerminal()
@@ -178,6 +229,11 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
   }, [isDeployment, resource])
 
   const handleEditYAML = useCallback(() => setActiveTab('yaml'), [])
+
+  const ownerInfo = useMemo(() => {
+    if (!resource) return null
+    return getOwnerInfo(resource)
+  }, [resource])
 
   const queryClient = useQueryClient()
   const rollPod = useMutation({
@@ -454,6 +510,17 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
                 <span className="material-symbols-outlined text-[18px]">folder_open</span>
                 Namespace: <span className="text-slate-700 dark:text-slate-300">{metadata.namespace}</span>
               </span>
+            )}
+            {ownerInfo && (
+              <Link
+                to="/resources/$"
+                params={{ _splat: ownerInfo.splat }}
+                className="flex items-center gap-1.5 hover:text-primary transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <span className="material-symbols-outlined text-[18px]">account_tree</span>
+                {ownerInfo.kind}: <span className="text-primary font-medium">{ownerInfo.name}</span>
+              </Link>
             )}
             {isSecret && (
               <span className="flex items-center gap-1.5">

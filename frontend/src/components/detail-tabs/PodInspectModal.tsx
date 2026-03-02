@@ -510,9 +510,11 @@ const LogViewer = memo(function LogViewer({
             {connected ? 'Waiting for log output...' : lines.length === 0 ? 'No logs available' : 'No lines match filter'}
           </div>
         )}
-        {filteredLines.map((line, i) => (
-          <LogLine key={i} line={line} lineNumber={i + 1} wrapLines={wrapLines} />
-        ))}
+        <div className={wrapLines ? undefined : 'w-max min-w-full'}>
+          {filteredLines.map((line, i) => (
+            <LogLine key={i} line={line} lineNumber={i + 1} wrapLines={wrapLines} />
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -529,7 +531,7 @@ function LogLine({ line, lineNumber, wrapLines }: { line: string; lineNumber: nu
       <span className="shrink-0 w-10 text-right pr-2 text-slate-400 dark:text-slate-600 select-none leading-5 group-hover:text-slate-500">
         {lineNumber}
       </span>
-      <span className={`flex-1 leading-5 ${wrapLines ? 'whitespace-pre-wrap break-all' : 'whitespace-pre'} ${colorClass}`}>
+      <span className={`leading-5 ${wrapLines ? 'flex-1 whitespace-pre-wrap break-all' : 'whitespace-pre'} ${colorClass}`}>
         {line}
       </span>
     </div>
