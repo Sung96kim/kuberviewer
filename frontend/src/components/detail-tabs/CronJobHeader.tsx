@@ -20,13 +20,25 @@ type CronJobHeaderProps = {
   onEditYAML: () => void
 }
 
+function to12Hour(hours: number, minutes: number): string {
+  const period = hours >= 12 ? 'PM' : 'AM'
+  const h = hours % 12 || 12
+  return `${h}:${String(minutes).padStart(2, '0')} ${period}`
+}
+
+function utcToLocalTimeStr(utcHour: string, utcMinute: string): string {
+  const d = new Date()
+  d.setUTCHours(parseInt(utcHour, 10), parseInt(utcMinute, 10), 0, 0)
+  return to12Hour(d.getHours(), d.getMinutes())
+}
+
 function describeCron(expression: string): string {
   const parts = expression.trim().split(/\s+/)
   if (parts.length < 5) return expression
 
   const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
 
-  const hourStr = hour === '*' ? '' : `${hour.padStart(2, '0')}:${minute.padStart(2, '0')}`
+  const hourStr = hour === '*' ? '' : utcToLocalTimeStr(hour, minute)
 
   if (dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
     if (hour === '*' && minute === '*') return 'Every minute'
@@ -76,15 +88,15 @@ function getNextRuns(expression: string, count: number): Date[] {
   const now = new Date()
 
   const start = new Date(now)
-  start.setSeconds(0, 0)
+  start.setUTCSeconds(0, 0)
 
   if (hour === null) {
-    start.setMinutes(minute)
+    start.setUTCMinutes(minute)
     if (start <= now) {
       start.setTime(start.getTime() + interval)
     }
   } else {
-    start.setHours(hour, minute, 0, 0)
+    start.setUTCHours(hour, minute, 0, 0)
     if (start <= now) {
       start.setTime(start.getTime() + interval)
     }
@@ -99,9 +111,14 @@ function getNextRuns(expression: string, count: number): Date[] {
   return runs
 }
 
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone
+
 function formatRunDate(date: Date): string {
   if (isNaN(date.getTime())) return 'Unknown'
-  return date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
+  const y = date.getFullYear()
+  const mo = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${mo}-${d} ${to12Hour(date.getHours(), date.getMinutes())}`
 }
 
 function getRelativeDay(date: Date): string {
@@ -217,7 +234,7 @@ export const CronJobHeader = memo(function CronJobHeader({
               <p className="text-sm text-slate-700 dark:text-slate-300">
                 {describeCron(schedule)}
               </p>
-              <p className="text-xs text-slate-600 dark:text-slate-500 mt-0.5">Timezone: UTC</p>
+              <p className="text-xs text-slate-600 dark:text-slate-500 mt-0.5">Shown in: {LOCAL_TZ}</p>
             </div>
 
             <div>

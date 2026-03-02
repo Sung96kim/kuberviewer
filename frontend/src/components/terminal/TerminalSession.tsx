@@ -21,9 +21,10 @@ export const TerminalSessionView = memo(function TerminalSessionView({
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
-  const { attach, disconnect } = useExecTerminal(
-    isVisible ? { namespace, pod, container } : null
-  )
+  const visibleRef = useRef(isVisible)
+  const { attach, disconnect } = useExecTerminal({ namespace, pod, container })
+
+  visibleRef.current = isVisible
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -67,7 +68,9 @@ export const TerminalSessionView = memo(function TerminalSessionView({
     attach(terminal)
 
     const resizeObserver = new ResizeObserver(() => {
-      fitAddon.fit()
+      if (visibleRef.current) {
+        fitAddon.fit()
+      }
     })
     resizeObserver.observe(containerRef.current)
 
@@ -83,6 +86,7 @@ export const TerminalSessionView = memo(function TerminalSessionView({
   useEffect(() => {
     if (isVisible && fitAddonRef.current) {
       fitAddonRef.current.fit()
+      terminalRef.current?.focus()
     }
   }, [isVisible])
 

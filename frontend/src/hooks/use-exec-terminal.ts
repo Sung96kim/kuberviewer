@@ -7,14 +7,12 @@ type ExecTerminalParams = {
   container?: string
 }
 
-export function useExecTerminal(params: ExecTerminalParams | null) {
+export function useExecTerminal(params: ExecTerminalParams) {
   const wsRef = useRef<WebSocket | null>(null)
   const termRef = useRef<Terminal | null>(null)
 
   const attach = useCallback((terminal: Terminal) => {
     termRef.current = terminal
-
-    if (!params) return
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const qs = new URLSearchParams({
@@ -60,7 +58,7 @@ export function useExecTerminal(params: ExecTerminalParams | null) {
         ws.send(JSON.stringify({ type: 'resize', cols, rows }))
       }
     })
-  }, [params?.namespace, params?.pod, params?.container])
+  }, [params.namespace, params.pod, params.container])
 
   const disconnect = useCallback(() => {
     if (wsRef.current) {
