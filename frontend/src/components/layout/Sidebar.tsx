@@ -90,12 +90,12 @@ export const Sidebar = memo(function Sidebar() {
             <Link
               key={item.href}
               to={item.href as string}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
+              className="flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
               activeProps={{
-                className: 'flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-medium min-w-0',
+                className: 'flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
               }}
             >
-              <span className="material-symbols-outlined shrink-0 text-blue-400">{item.icon}</span>
+              <span className="material-symbols-outlined shrink-0 text-[18px] text-blue-400">{item.icon}</span>
               <span className="truncate">{item.label}</span>
             </Link>
           ))}
@@ -138,12 +138,12 @@ const SidebarGroup = memo(function SidebarGroup({ group }: { group: ResourceGrou
           key={`${resource.group}/${resource.version}/${resource.name}`}
           to="/resources/$"
           params={{ _splat: buildResourceSplat(resource) }}
-          className="flex items-center gap-3 px-3 py-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
+          className="flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
           activeProps={{
-            className: 'flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary font-medium min-w-0',
+            className: 'flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
           }}
         >
-          <span className="material-symbols-outlined shrink-0 text-blue-400">{getKindIcon(resource.kind)}</span>
+          <span className="material-symbols-outlined shrink-0 text-[18px] text-blue-400">{getKindIcon(resource.kind)}</span>
           <span className="truncate">{resource.kind}</span>
         </Link>
       ))}

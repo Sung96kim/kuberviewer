@@ -42,42 +42,65 @@ function describeCron(expression: string): string {
   return expression
 }
 
+function parseCronField(field: string): number | null {
+  if (field === '*') return null
+  if (field.includes('/')) {
+    const base = field.split('/')[0]
+    return base === '*' ? 0 : parseInt(base, 10)
+  }
+  if (field.includes(',')) return parseInt(field.split(',')[0], 10)
+  if (field.includes('-')) return parseInt(field.split('-')[0], 10)
+  const n = parseInt(field, 10)
+  return isNaN(n) ? null : n
+}
+
+function getIntervalMs(minuteStr: string, hourStr: string): number {
+  if (minuteStr.includes('/')) {
+    const step = parseInt(minuteStr.split('/')[1], 10)
+    if (!isNaN(step) && step > 0) return step * 60 * 1000
+  }
+  if (hourStr === '*') return 60 * 60 * 1000
+  return 24 * 60 * 60 * 1000
+}
+
 function getNextRuns(expression: string, count: number): Date[] {
   const parts = expression.trim().split(/\s+/)
   if (parts.length < 5) return []
 
-  const [minuteStr, hourStr, , ,] = parts
-  const minute = minuteStr === '*' ? 0 : parseInt(minuteStr, 10)
-  const hour = hourStr === '*' ? -1 : parseInt(hourStr, 10)
+  const [minuteStr, hourStr] = parts
+  const minute = parseCronField(minuteStr) ?? 0
+  const hour = parseCronField(hourStr)
+  const interval = getIntervalMs(minuteStr, hourStr)
 
   const runs: Date[] = []
   const now = new Date()
 
-  if (hour === -1) {
-    const start = new Date(now)
-    start.setSeconds(0, 0)
-    if (start.getMinutes() >= minute) {
-      start.setHours(start.getHours() + 1)
-    }
+  const start = new Date(now)
+  start.setSeconds(0, 0)
+
+  if (hour === null) {
     start.setMinutes(minute)
-    for (let i = 0; i < count; i++) {
-      runs.push(new Date(start.getTime() + i * 60 * 60 * 1000))
+    if (start <= now) {
+      start.setTime(start.getTime() + interval)
     }
   } else {
-    const start = new Date(now)
     start.setHours(hour, minute, 0, 0)
     if (start <= now) {
-      start.setDate(start.getDate() + 1)
+      start.setTime(start.getTime() + interval)
     }
-    for (let i = 0; i < count; i++) {
-      runs.push(new Date(start.getTime() + i * 24 * 60 * 60 * 1000))
-    }
+  }
+
+  if (isNaN(start.getTime())) return []
+
+  for (let i = 0; i < count; i++) {
+    runs.push(new Date(start.getTime() + i * interval))
   }
 
   return runs
 }
 
 function formatRunDate(date: Date): string {
+  if (isNaN(date.getTime())) return 'Unknown'
   return date.toISOString().replace('T', ' ').replace(/\.\d+Z$/, ' UTC')
 }
 

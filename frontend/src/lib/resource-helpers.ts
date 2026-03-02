@@ -498,6 +498,26 @@ function cronJobColumns(): ColumnDef<KubeItem>[] {
   ]
 }
 
+function serviceAccountColumns(): ColumnDef<KubeItem>[] {
+  return [
+    nameColumn(),
+    namespaceColumn(),
+    {
+      id: 'secrets',
+      accessorFn: (row) => ((row.secrets ?? []) as Array<unknown>).length,
+      header: 'Secrets',
+      enableSorting: true,
+    },
+    {
+      id: 'imagePullSecrets',
+      accessorFn: (row) => ((row.imagePullSecrets ?? []) as Array<unknown>).length,
+      header: 'Pull Secrets',
+      enableSorting: true,
+    },
+    ageColumn(),
+  ]
+}
+
 function configMapColumns(): ColumnDef<KubeItem>[] {
   return [
     nameColumn(),
@@ -678,6 +698,7 @@ const KIND_COLUMN_MAP: Record<string, () => ColumnDef<KubeItem>[]> = {
   Ingress: ingressColumns,
   ConfigMap: configMapColumns,
   Secret: secretColumns,
+  ServiceAccount: serviceAccountColumns,
   PersistentVolumeClaim: pvcColumns,
   Node: nodeColumns,
   Namespace: namespaceColumns,

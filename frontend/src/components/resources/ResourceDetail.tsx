@@ -25,6 +25,12 @@ import { EndpointSliceSection } from '#/components/detail-tabs/EndpointSliceSect
 import { PersistentVolumeClaimSection } from '#/components/detail-tabs/PersistentVolumeClaimSection'
 import { PersistentVolumeSection } from '#/components/detail-tabs/PersistentVolumeSection'
 import { StorageClassSection } from '#/components/detail-tabs/StorageClassSection'
+import { ServiceAccountSection } from '#/components/detail-tabs/ServiceAccountSection'
+import { DaemonSetSection } from '#/components/detail-tabs/DaemonSetSection'
+import { ReplicaSetSection } from '#/components/detail-tabs/ReplicaSetSection'
+import { StatefulSetSection } from '#/components/detail-tabs/StatefulSetSection'
+import { JobSection } from '#/components/detail-tabs/JobSection'
+import { ConfigMapSection } from '#/components/detail-tabs/ConfigMapSection'
 import { ResourceEventsTab } from '#/components/detail-tabs/ResourceEventsTab'
 
 type ResourceDetailProps = {
@@ -220,7 +226,12 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
   const isPVC = kind === 'PersistentVolumeClaim' || resourceType === 'persistentvolumeclaims'
   const isPV = kind === 'PersistentVolume' || resourceType === 'persistentvolumes'
   const isStorageClass = kind === 'StorageClass' || resourceType === 'storageclasses'
-  const hasSpecialSection = isEndpoints || isIngress || isNetworkPolicy || isEndpointSlice || isSecret || isPVC || isPV || isStorageClass
+  const isServiceAccount = kind === 'ServiceAccount' || resourceType === 'serviceaccounts'
+  const isDaemonSet = kind === 'DaemonSet' || resourceType === 'daemonsets'
+  const isReplicaSet = kind === 'ReplicaSet' || resourceType === 'replicasets'
+  const isStatefulSet = kind === 'StatefulSet' || resourceType === 'statefulsets'
+  const isConfigMap = kind === 'ConfigMap' || resourceType === 'configmaps'
+  const hasSpecialSection = isEndpoints || isIngress || isNetworkPolicy || isEndpointSlice || isSecret || isPVC || isPV || isStorageClass || isServiceAccount || isDaemonSet || isReplicaSet || isStatefulSet || isJob || isConfigMap
   const containerNames = useMemo(() => (isPod && resource) ? getContainerNames(resource) : [], [isPod, resource])
   const matchLabels = useMemo(() => {
     if (!isDeployment || !resource) return {}
@@ -417,7 +428,7 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
     const result: Array<{ id: TabId; label: string }> = []
 
     if (hasSpecialSection) {
-      result.push({ id: 'overview', label: isSecret ? 'Data Overview' : isEndpoints ? 'Subsets' : isIngress ? 'Rules' : isNetworkPolicy ? 'Policy' : isEndpointSlice ? 'Endpoints' : isPVC || isPV ? 'Volume' : isStorageClass ? 'Details' : 'Overview' })
+      result.push({ id: 'overview', label: isSecret ? 'Data Overview' : isEndpoints ? 'Subsets' : isIngress ? 'Rules' : isNetworkPolicy ? 'Policy' : isEndpointSlice ? 'Endpoints' : isPVC || isPV ? 'Volume' : isStorageClass ? 'Details' : isServiceAccount ? 'Account' : isConfigMap ? 'Data' : 'Overview' })
     } else {
       result.push({ id: 'overview', label: 'Overview' })
     }
@@ -592,6 +603,12 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
               {isPVC && <PersistentVolumeClaimSection resource={resource as Record<string, unknown>} />}
               {isPV && <PersistentVolumeSection resource={resource as Record<string, unknown>} />}
               {isStorageClass && <StorageClassSection resource={resource as Record<string, unknown>} />}
+              {isServiceAccount && <ServiceAccountSection resource={resource as Record<string, unknown>} />}
+              {isDaemonSet && <DaemonSetSection resource={resource as Record<string, unknown>} />}
+              {isReplicaSet && <ReplicaSetSection resource={resource as Record<string, unknown>} />}
+              {isStatefulSet && <StatefulSetSection resource={resource as Record<string, unknown>} />}
+              {isJob && <JobSection resource={resource as Record<string, unknown>} />}
+              {isConfigMap && <ConfigMapSection resource={resource as Record<string, unknown>} />}
             </>
           ) : (
             <>
