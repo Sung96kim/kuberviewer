@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useContexts, useSwitchContext } from '#/hooks/use-contexts'
 import { useTheme } from '#/hooks/use-theme'
@@ -24,6 +24,18 @@ export function Header() {
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 'd') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   const currentContext = contextData?.current
   const contexts = contextData?.contexts ?? []
@@ -54,12 +66,18 @@ export function Header() {
               search
             </span>
             <input
+              ref={searchInputRef}
               type="text"
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
               placeholder="Search pods, services, deployments..."
               className="w-full pl-10 pr-10 py-2 bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-colors"
             />
+            {!searchValue && (
+              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 font-mono border border-border-light dark:border-border-dark rounded px-1.5 py-0.5 pointer-events-none">
+                Alt+D
+              </kbd>
+            )}
             {searchValue && (
               <button
                 type="button"

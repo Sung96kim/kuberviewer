@@ -45,40 +45,25 @@ async def stream_pod_logs(
             response_type="object",
             auth_settings=["BearerToken"],
             _preload_content=False,
+            _request_timeout=(10, 3600),
         )
         return resp[0]
 
     response = await asyncio.to_thread(_open_stream)
-
     loop = asyncio.get_event_loop()
-    queue: asyncio.Queue[str | None] = asyncio.Queue()
 
-    def _read_stream() -> None:
-        try:
-            for chunk in response.stream(4096, decode_content=True):
-                if chunk:
-                    loop.call_soon_threadsafe(queue.put_nowait, chunk.decode("utf-8"))
-            loop.call_soon_threadsafe(queue.put_nowait, None)
-        except Exception:
-            logger.exception("Log stream error")
-            loop.call_soon_threadsafe(queue.put_nowait, None)
-        finally:
-            response.close()
+    def _readline():
+        return response.readline()
 
-    loop.run_in_executor(_stream_executor, _read_stream)
-
-    buffer = ""
     try:
         while True:
-            chunk = await queue.get()
-            if chunk is None:
+            raw = await loop.run_in_executor(_stream_executor, _readline)
+            if not raw:
                 break
-            buffer += chunk
-            while "\n" in buffer:
-                line, buffer = buffer.split("\n", 1)
-                if line:
-                    yield f"data: {line}\n\n"
-        if buffer.strip():
-            yield f"data: {buffer.strip()}\n\n"
+            line = raw.decode("utf-8", errors="replace").rstrip("\n\r")
+            if line:
+                yield f"data: {line}\n\n"
+    except Exception:
+        logger.exception("Log stream error for %s/%s", namespace, pod_name)
     finally:
         response.close()

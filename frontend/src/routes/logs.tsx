@@ -490,6 +490,12 @@ function LogsPage() {
     saveGroups(groupsState)
   }, [groupsState])
 
+  useEffect(() => {
+    if (panels.length > 0 && !panels.some(p => p.id === activeId)) {
+      setActiveId(panels[0].id)
+    }
+  }, [panels, activeId])
+
   const updateActiveGroup = useCallback((updater: (panels: LogPanelState[]) => LogPanelState[]) => {
     setGroupsState(prev => ({
       ...prev,
@@ -803,36 +809,49 @@ function LogsPage() {
         </div>
       )}
 
-      {panels.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-4">
-            <div className="mx-auto w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-              <span className="material-symbols-outlined text-[32px] text-slate-400">article</span>
+      <div className="flex-1 relative min-h-0">
+        {panels.length === 0 && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center space-y-4">
+              <div className="mx-auto w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <span className="material-symbols-outlined text-[32px] text-slate-400">article</span>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-white">No log streams</h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                  Add pods to start streaming their logs
+                </p>
+              </div>
+              <Button onClick={() => setSearchOpen(true)}>
+                <span className="material-symbols-outlined text-[18px]">add</span>
+                Add Pods
+              </Button>
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-white">No log streams</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                Add pods to start streaming their logs
-              </p>
-            </div>
-            <Button onClick={() => setSearchOpen(true)}>
-              <span className="material-symbols-outlined text-[18px]">add</span>
-              Add Pods
-            </Button>
           </div>
-        </div>
-      ) : (
-        <ResizableGrid
-          panels={panels}
-          focusedId={focusedId}
-          activeId={activeId}
-          panelRefs={panelRefs}
-          onClose={removePanel}
-          onContainerChange={handleContainerChange}
-          onFocus={handleFocus}
-          onActivate={setActiveId}
-        />
-      )}
+        )}
+        {groupsState.groups.map(group => {
+          const isActive = group.id === groupsState.activeGroupId
+          if (group.panels.length === 0) return null
+          return (
+            <div
+              key={group.id}
+              className="absolute inset-0 flex flex-col"
+              style={{ visibility: isActive ? 'visible' : 'hidden', zIndex: isActive ? 1 : 0 }}
+            >
+              <ResizableGrid
+                panels={group.panels}
+                focusedId={isActive ? focusedId : null}
+                activeId={isActive ? activeId : null}
+                panelRefs={panelRefs}
+                onClose={removePanel}
+                onContainerChange={handleContainerChange}
+                onFocus={handleFocus}
+                onActivate={setActiveId}
+              />
+            </div>
+          )
+        })}
+      </div>
 
       <LogPodSearchDialog
         open={searchOpen}

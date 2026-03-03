@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useResourceList } from '#/hooks/use-resource-list'
 import { Button } from '#/components/ui/button'
 import {
@@ -66,6 +66,13 @@ export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearc
   const [search, setSearch] = useState('')
   const [namespace, setNamespace] = useState('default')
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (open) {
+      requestAnimationFrame(() => {
+        document.querySelector<HTMLInputElement>('[cmdk-input]')?.focus()
+      })
+    }
+  }, [open])
 
   const { data: nsData } = useResourceList({
     group: '',
@@ -87,7 +94,13 @@ export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearc
     namespace,
   })
 
-  const pods = (podData?.items ?? []) as PodItem[]
+  const allPods = (podData?.items ?? []) as PodItem[]
+
+  const pods = useMemo(() => {
+    if (!search) return allPods
+    const q = search.toLowerCase()
+    return allPods.filter((pod) => (pod.metadata?.name ?? '').toLowerCase().includes(q))
+  }, [allPods, search])
 
   const togglePod = useCallback((key: string) => {
     setSelected((prev) => {
@@ -102,7 +115,7 @@ export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearc
   }, [])
 
   const handleConfirm = useCallback(() => {
-    const selectedPods: SelectedPod[] = pods
+    const selectedPods: SelectedPod[] = allPods
       .filter((pod) => selected.has(podKey(pod)))
       .map((pod) => ({
         namespace: pod.metadata?.namespace ?? 'default',
@@ -113,7 +126,7 @@ export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearc
     onOpenChange(false)
     setSearch('')
     setSelected(new Set())
-  }, [pods, selected, onSelect, onOpenChange])
+  }, [allPods, selected, onSelect, onOpenChange])
 
   const handleClose = useCallback((value: boolean) => {
     onOpenChange(value)
@@ -123,6 +136,19 @@ export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearc
     }
   }, [onOpenChange])
 
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && selected.size > 0) {
+        e.preventDefault()
+        e.stopPropagation()
+        handleConfirm()
+      }
+    }
+    document.addEventListener('keydown', handler, true)
+    return () => document.removeEventListener('keydown', handler, true)
+  }, [open, selected.size, handleConfirm])
+
   return (
     <CommandDialog
       open={open}
@@ -130,6 +156,7 @@ export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearc
       title="Add Pods"
       description="Select pods to stream their logs"
       showCloseButton={false}
+      shouldFilter={false}
     >
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border">
         <span className="text-xs text-slate-500 shrink-0">Namespace:</span>
@@ -142,7 +169,7 @@ export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearc
           className="flex-1 text-sm bg-transparent border border-border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary text-foreground"
         >
           {namespaces.map((ns) => (
-            <option key={ns} value={ns}>{ns}</option>
+            <option key={ns} value={ns} className="bg-popover text-popover-foreground">{ns}</option>
           ))}
         </select>
       </div>
@@ -194,6 +221,7 @@ export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearc
           </span>
           <Button size="sm" onClick={handleConfirm}>
             Add {selected.size} pod{selected.size > 1 ? 's' : ''}
+            <kbd className="ml-1.5 text-[10px] opacity-60 font-mono">Ctrl+Enter</kbd>
           </Button>
         </div>
       )}
