@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useResource } from '#/hooks/use-resource'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { usePodMetrics } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
+import { parseCpuToMillicores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor } from '#/lib/resource-units'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 
@@ -94,52 +96,8 @@ type KubeListResponse<T> = {
 
 type EventFilter = 'All' | 'Warning' | 'Normal'
 
-function parseCpuValue(value: string): number {
-  if (value.endsWith('m')) {
-    return parseInt(value, 10) / 1000
-  }
-  if (value.endsWith('n')) {
-    return parseInt(value, 10) / 1_000_000_000
-  }
-  return parseFloat(value)
-}
-
-function parseMemoryBytes(value: string): number {
-  const units: Record<string, number> = {
-    Ki: 1024,
-    Mi: 1024 ** 2,
-    Gi: 1024 ** 3,
-    Ti: 1024 ** 4,
-    K: 1000,
-    M: 1000 ** 2,
-    G: 1000 ** 3,
-    T: 1000 ** 4,
-  }
-  for (const [suffix, multiplier] of Object.entries(units)) {
-    if (value.endsWith(suffix)) {
-      return parseFloat(value.replace(suffix, '')) * multiplier
-    }
-  }
-  return parseFloat(value)
-}
-
-function formatCpuDisplay(cores: number): string {
-  if (cores < 1) return `${Math.round(cores * 1000)}m`
-  return `${cores.toFixed(1)} cores`
-}
-
-function formatMemoryDisplay(bytes: number): string {
-  const gi = bytes / (1024 ** 3)
-  if (gi >= 1) return `${gi.toFixed(1)} GiB`
-  const mi = bytes / (1024 ** 2)
-  if (mi >= 1) return `${mi.toFixed(0)} MiB`
-  return `${(bytes / 1024).toFixed(0)} KiB`
-}
-
-function getBarColor(percentage: number): { bar: string; bg: string; text: string } {
-  if (percentage <= 50) return { bar: 'bg-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-500' }
-  if (percentage <= 80) return { bar: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-500' }
-  return { bar: 'bg-red-500', bg: 'bg-red-500/10', text: 'text-red-500' }
+function formatCpuCores(cores: number): string {
+  return formatCpu(cores * 1000)
 }
 
 function getResourceLinkPath(kind: string, name: string, namespace?: string): string {
@@ -237,7 +195,7 @@ function QuotaProgressBar({ label, icon, usedValue: used, limitValue: limit, for
   formatFn: (value: number) => string
 }) {
   const percentage = limit > 0 ? Math.round((used / limit) * 100) : 0
-  const color = getBarColor(percentage)
+  const color = getUsageBarColor(percentage)
 
   return (
     <div className="space-y-2">
@@ -357,6 +315,8 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
+  const { data: podMetricsData } = usePodMetrics(name)
+
   const namespace = nsData as KubeNamespace | undefined
   const pods = ((podsData as KubeListResponse<KubePod>)?.items ?? []) as KubePod[]
   const deployments = ((deploymentsData as KubeListResponse<KubeDeployment>)?.items ?? []) as KubeDeployment[]
@@ -374,20 +334,33 @@ function NamespaceDetailPage() {
   const aggregatedCpu = quotas.reduce<{ used: number; hard: number }>((acc, q) => {
     const usedRaw = q.status?.used?.['requests.cpu'] ?? q.status?.used?.['cpu']
     const hardRaw = q.status?.hard?.['requests.cpu'] ?? q.status?.hard?.['cpu']
-    if (usedRaw) acc.used += parseCpuValue(usedRaw)
-    if (hardRaw) acc.hard += parseCpuValue(hardRaw)
+    if (usedRaw) acc.used += parseCpuToMillicores(usedRaw) / 1000
+    if (hardRaw) acc.hard += parseCpuToMillicores(hardRaw) / 1000
     return acc
   }, { used: 0, hard: 0 })
 
   const aggregatedMemory = quotas.reduce<{ used: number; hard: number }>((acc, q) => {
     const usedRaw = q.status?.used?.['requests.memory'] ?? q.status?.used?.['memory']
     const hardRaw = q.status?.hard?.['requests.memory'] ?? q.status?.hard?.['memory']
-    if (usedRaw) acc.used += parseMemoryBytes(usedRaw)
-    if (hardRaw) acc.hard += parseMemoryBytes(hardRaw)
+    if (usedRaw) acc.used += parseMemoryToBytes(usedRaw)
+    if (hardRaw) acc.hard += parseMemoryToBytes(hardRaw)
     return acc
   }, { used: 0, hard: 0 })
 
   const hasQuotas = quotas.length > 0 && (aggregatedCpu.hard > 0 || aggregatedMemory.hard > 0)
+
+  const actualUsage = useMemo(() => {
+    if (!podMetricsData?.available || !podMetricsData.items) return null
+    let cpuMillicores = 0
+    let memBytes = 0
+    for (const pod of podMetricsData.items) {
+      for (const container of pod.containers) {
+        cpuMillicores += parseCpuToMillicores(container.usage.cpu)
+        memBytes += parseMemoryToBytes(container.usage.memory)
+      }
+    }
+    return { cpuMillicores, memBytes }
+  }, [podMetricsData])
 
   const sortedEvents = [...events].sort((a, b) =>
     new Date(b.metadata.creationTimestamp).getTime() - new Date(a.metadata.creationTimestamp).getTime()
@@ -497,6 +470,37 @@ function NamespaceDetailPage() {
         />
       </div>
 
+      {actualUsage && (
+        <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
+          <div className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+            <h3 className="text-base font-bold flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px] text-primary">monitoring</span>
+              Actual Usage
+            </h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="material-symbols-outlined text-[18px] text-blue-400">memory</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-medium">CPU Usage</span>
+                </div>
+                <p className="text-2xl font-bold">{formatCpu(actualUsage.cpuMillicores)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">across {podMetricsData?.items?.length ?? 0} pods</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="material-symbols-outlined text-[18px] text-purple-400">storage</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-medium">Memory Usage</span>
+                </div>
+                <p className="text-2xl font-bold">{formatMemory(actualUsage.memBytes)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">across {podMetricsData?.items?.length ?? 0} pods</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
         <div className="px-6 py-4 border-b border-border-light dark:border-border-dark">
           <h3 className="text-base font-bold flex items-center gap-2">
@@ -518,7 +522,7 @@ function NamespaceDetailPage() {
                   icon="memory"
                   usedValue={aggregatedCpu.used}
                   limitValue={aggregatedCpu.hard}
-                  formatFn={formatCpuDisplay}
+                  formatFn={formatCpuCores}
                 />
               )}
               {aggregatedMemory.hard > 0 && (
@@ -527,7 +531,7 @@ function NamespaceDetailPage() {
                   icon="storage"
                   usedValue={aggregatedMemory.used}
                   limitValue={aggregatedMemory.hard}
-                  formatFn={formatMemoryDisplay}
+                  formatFn={formatMemory}
                 />
               )}
             </div>

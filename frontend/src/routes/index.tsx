@@ -1,8 +1,11 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { useNodeMetrics } from '#/hooks/use-metrics'
+import { parseCpuToCores, parseMemoryToBytes, formatMemory } from '#/lib/resource-units'
 import { relativeTime } from '#/lib/time'
 import { Skeleton } from '#/components/ui/skeleton'
+import type { NodeMetricItem } from '#/api'
 
 export const Route = createFileRoute('/')({ component: ClusterOverview })
 
@@ -130,27 +133,23 @@ function getNodeResourceInfo(data: KubeListResponse | undefined) {
   for (const node of items) {
     const capacity = (node as { status?: NodeStatus }).status?.capacity
     if (capacity) {
-      const cpu = capacity.cpu
-      if (cpu) {
-        totalCpuCores += cpu.endsWith('m')
-          ? parseInt(cpu, 10) / 1000
-          : parseInt(cpu, 10)
-      }
-      const memory = capacity.memory
-      if (memory) {
-        totalMemoryBytes += parseMemoryToBytes(memory)
-      }
+      if (capacity.cpu) totalCpuCores += parseCpuToCores(capacity.cpu)
+      if (capacity.memory) totalMemoryBytes += parseMemoryToBytes(capacity.memory)
     }
   }
 
-  return { totalCpuCores, totalMemoryGiB: Math.round(totalMemoryBytes / (1024 * 1024 * 1024)) }
+  return { totalCpuCores, totalMemoryBytes }
 }
 
-function parseMemoryToBytes(mem: string): number {
-  if (mem.endsWith('Ki')) return parseInt(mem, 10) * 1024
-  if (mem.endsWith('Mi')) return parseInt(mem, 10) * 1024 * 1024
-  if (mem.endsWith('Gi')) return parseInt(mem, 10) * 1024 * 1024 * 1024
-  return parseInt(mem, 10)
+function getMetricsUsage(items: NodeMetricItem[] | undefined) {
+  if (!items?.length) return null
+  let cpuCores = 0
+  let memoryBytes = 0
+  for (const node of items) {
+    cpuCores += parseCpuToCores(node.usage.cpu)
+    memoryBytes += parseMemoryToBytes(node.usage.memory)
+  }
+  return { cpuCores, memoryBytes }
 }
 
 function getRecentEvents(data: KubeListResponse | undefined): KubeEvent[] {
@@ -262,11 +261,13 @@ function PodsCard({ data, isLoading, isError }: { data: KubeListResponse | undef
   )
 }
 
-function CpuCard({ data, isLoading, isError }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean }) {
+function CpuCard({ data, isLoading, isError, metricsItems }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; metricsItems: NodeMetricItem[] | undefined }) {
   if (isError) return <StatCardError />
   if (isLoading) return <StatCardSkeleton />
 
   const { totalCpuCores } = getNodeResourceInfo(data)
+  const usage = getMetricsUsage(metricsItems)
+  const pct = usage && totalCpuCores > 0 ? Math.round((usage.cpuCores / totalCpuCores) * 100) : null
 
   return (
     <Link to="/nodes" className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-orange-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-200 cursor-pointer">
@@ -274,25 +275,40 @@ function CpuCard({ data, isLoading, isError }: { data: KubeListResponse | undefi
         <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
           <span className="material-symbols-outlined">memory</span>
         </div>
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Capacity</span>
+        {pct !== null ? (
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${pct > 80 ? 'text-red-500 bg-red-500/10' : pct > 50 ? 'text-amber-500 bg-amber-500/10' : 'text-emerald-500 bg-emerald-500/10'}`}>{pct}% Used</span>
+        ) : (
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Capacity</span>
+        )}
       </div>
-      <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">CPU Capacity</h3>
+      <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">CPU</h3>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-bold">{totalCpuCores}</span>
-        <span className="text-sm text-slate-500 dark:text-slate-400">Cores</span>
+        {usage ? (
+          <>
+            <span className="text-3xl font-bold">{usage.cpuCores.toFixed(1)}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">/ {totalCpuCores} Cores</span>
+          </>
+        ) : (
+          <>
+            <span className="text-3xl font-bold">{totalCpuCores}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Cores</span>
+          </>
+        )}
       </div>
       <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full" style={{ width: '100%' }} />
+        <div className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full transition-all duration-500" style={{ width: pct !== null ? `${pct}%` : '100%' }} />
       </div>
     </Link>
   )
 }
 
-function MemoryCard({ data, isLoading, isError }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean }) {
+function MemoryCard({ data, isLoading, isError, metricsItems }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; metricsItems: NodeMetricItem[] | undefined }) {
   if (isError) return <StatCardError />
   if (isLoading) return <StatCardSkeleton />
 
-  const { totalMemoryGiB } = getNodeResourceInfo(data)
+  const { totalMemoryBytes } = getNodeResourceInfo(data)
+  const usage = getMetricsUsage(metricsItems)
+  const pct = usage && totalMemoryBytes > 0 ? Math.round((usage.memoryBytes / totalMemoryBytes) * 100) : null
 
   return (
     <Link to="/nodes" className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-pink-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-pink-500/10 transition-all duration-200 cursor-pointer">
@@ -300,15 +316,28 @@ function MemoryCard({ data, isLoading, isError }: { data: KubeListResponse | und
         <div className="p-2 rounded-lg bg-pink-500/10 text-pink-500">
           <span className="material-symbols-outlined">hard_drive</span>
         </div>
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Capacity</span>
+        {pct !== null ? (
+          <span className={`text-xs font-medium px-2 py-1 rounded-full ${pct > 80 ? 'text-red-500 bg-red-500/10' : pct > 50 ? 'text-amber-500 bg-amber-500/10' : 'text-emerald-500 bg-emerald-500/10'}`}>{pct}% Used</span>
+        ) : (
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Capacity</span>
+        )}
       </div>
-      <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Memory Capacity</h3>
+      <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Memory</h3>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-bold">{totalMemoryGiB}</span>
-        <span className="text-sm text-slate-500 dark:text-slate-400">GiB Total</span>
+        {usage ? (
+          <>
+            <span className="text-3xl font-bold">{formatMemory(usage.memoryBytes)}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">/ {formatMemory(totalMemoryBytes)}</span>
+          </>
+        ) : (
+          <>
+            <span className="text-3xl font-bold">{formatMemory(totalMemoryBytes)}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Total</span>
+          </>
+        )}
       </div>
       <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-pink-400 to-pink-600 rounded-full" style={{ width: '100%' }} />
+        <div className="h-full bg-gradient-to-r from-pink-400 to-pink-600 rounded-full transition-all duration-500" style={{ width: pct !== null ? `${pct}%` : '100%' }} />
       </div>
     </Link>
   )
@@ -418,6 +447,8 @@ function ClusterOverview() {
   const namespacesQuery = useNamespaces()
   const deploymentsQuery = useDeployments()
   const eventsQuery = useEvents()
+  const metricsQuery = useNodeMetrics()
+  const metricsItems = metricsQuery.data?.available ? metricsQuery.data.items : undefined
 
   const namespaceCount = ((namespacesQuery.data as KubeListResponse | undefined)?.items ?? []).length
   const deploymentCount = ((deploymentsQuery.data as KubeListResponse | undefined)?.items ?? []).length
@@ -466,11 +497,13 @@ function ClusterOverview() {
           data={nodesQuery.data as KubeListResponse | undefined}
           isLoading={nodesQuery.isLoading}
           isError={nodesQuery.isError}
+          metricsItems={metricsItems}
         />
         <MemoryCard
           data={nodesQuery.data as KubeListResponse | undefined}
           isLoading={nodesQuery.isLoading}
           isError={nodesQuery.isError}
+          metricsItems={metricsItems}
         />
       </div>
 

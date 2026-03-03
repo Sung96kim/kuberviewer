@@ -1,6 +1,7 @@
 import { useState, useMemo, memo, useCallback } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useAPIResources } from '#/hooks/use-api-resources'
+import { usePrometheusStatus } from '#/hooks/use-prometheus'
 import { ClusterHealth } from '#/components/layout/ClusterHealth'
 import type { ResourceGroup } from '#/types'
 
@@ -45,6 +46,7 @@ function buildResourceSplat(resource: { group: string; version: string; name: st
 
 export const Sidebar = memo(function Sidebar() {
   const { data: apiData } = useAPIResources()
+  const { data: promStatus } = usePrometheusStatus()
   const [collapsed, setCollapsed] = useState(false)
   const [clusterOpen, setClusterOpen] = useState(true)
   const groups: ResourceGroup[] = useMemo(() => apiData?.groups ?? [], [apiData])
@@ -86,19 +88,35 @@ export const Sidebar = memo(function Sidebar() {
               expand_more
             </span>
           </button>
-          {clusterOpen && CLUSTER_NAV.map((item) => (
-            <Link
-              key={item.href}
-              to={item.href as string}
-              className="flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
-              activeProps={{
-                className: 'flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
-              }}
-            >
-              <span className="material-symbols-outlined shrink-0 text-[18px] text-blue-400">{item.icon}</span>
-              <span className="truncate">{item.label}</span>
-            </Link>
-          ))}
+          {clusterOpen && (
+            <>
+              {CLUSTER_NAV.map((item) => (
+                <Link
+                  key={item.href}
+                  to={item.href as string}
+                  className="flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
+                  activeProps={{
+                    className: 'flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
+                  }}
+                >
+                  <span className="material-symbols-outlined shrink-0 text-[18px] text-blue-400">{item.icon}</span>
+                  <span className="truncate">{item.label}</span>
+                </Link>
+              ))}
+              {promStatus?.available && (
+                <Link
+                  to="/metrics"
+                  className="flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
+                  activeProps={{
+                    className: 'flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
+                  }}
+                >
+                  <span className="material-symbols-outlined shrink-0 text-[18px] text-blue-400">monitoring</span>
+                  <span className="truncate">Metrics</span>
+                </Link>
+              )}
+            </>
+          )}
         </div>
 
         {groups.map((group) => (

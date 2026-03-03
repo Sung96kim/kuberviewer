@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     kubeconfig_path: str | None = None
     cors_origins: list[str] = ["http://localhost:5173"]
     log_level: str = "info"
+    prometheus_url: str | None = None
 
     model_config = {"env_prefix": "KUBERVIEWER_"}
 

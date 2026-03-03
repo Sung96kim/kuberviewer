@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { Link } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useResource } from '#/hooks/use-resource'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { useNodeMetricsByName } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
+import { parseCpuToCores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor, getAllocatableBarColor } from '#/lib/resource-units'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 import { ResourceYAMLEditor } from '#/components/resources/ResourceYAMLEditor'
@@ -60,90 +61,17 @@ type KubeListResponse = {
 
 type TabId = 'overview' | 'yaml'
 
-type ResourceValues = {
-  allocatable: number
-  capacity: number
+type ResourceBarData = {
   percentage: number
-  allocatableDisplay: string
-  capacityDisplay: string
-}
-
-function parseCpuValue(value: string): number {
-  if (value.endsWith('m')) {
-    return parseInt(value, 10) / 1000
-  }
-  if (value.endsWith('n')) {
-    return parseInt(value, 10) / 1_000_000_000
-  }
-  return parseFloat(value)
-}
-
-function parseMemoryBytes(value: string): number {
-  const units: Record<string, number> = {
-    Ki: 1024,
-    Mi: 1024 ** 2,
-    Gi: 1024 ** 3,
-    Ti: 1024 ** 4,
-    K: 1000,
-    M: 1000 ** 2,
-    G: 1000 ** 3,
-    T: 1000 ** 4,
-  }
-  for (const [suffix, multiplier] of Object.entries(units)) {
-    if (value.endsWith(suffix)) {
-      return parseFloat(value.replace(suffix, '')) * multiplier
-    }
-  }
-  return parseFloat(value)
-}
-
-function formatMemoryGi(bytes: number): string {
-  const gi = bytes / (1024 ** 3)
-  return gi >= 1 ? `${gi.toFixed(1)} GiB` : `${(bytes / (1024 ** 2)).toFixed(0)} MiB`
-}
-
-function getCpuValues(node: KubeNode): ResourceValues | null {
-  const capacityRaw = node.status?.capacity?.cpu
-  const allocatableRaw = node.status?.allocatable?.cpu
-  if (!capacityRaw || !allocatableRaw) return null
-  const capacity = parseCpuValue(capacityRaw)
-  const allocatable = parseCpuValue(allocatableRaw)
-  const percentage = capacity > 0 ? Math.round((allocatable / capacity) * 100) : 0
-  return {
-    allocatable,
-    capacity,
-    percentage,
-    allocatableDisplay: `${allocatable.toFixed(1)}`,
-    capacityDisplay: `${capacity} Cores`,
-  }
-}
-
-function getMemoryValues(node: KubeNode): ResourceValues | null {
-  const capacityRaw = node.status?.capacity?.memory
-  const allocatableRaw = node.status?.allocatable?.memory
-  if (!capacityRaw || !allocatableRaw) return null
-  const capacity = parseMemoryBytes(capacityRaw)
-  const allocatable = parseMemoryBytes(allocatableRaw)
-  const percentage = capacity > 0 ? Math.round((allocatable / capacity) * 100) : 0
-  return {
-    allocatable,
-    capacity,
-    percentage,
-    allocatableDisplay: formatMemoryGi(allocatable),
-    capacityDisplay: formatMemoryGi(capacity),
-  }
+  usedDisplay: string
+  totalDisplay: string
+  mode: 'usage' | 'allocatable'
 }
 
 function getNodeStatus(node: KubeNode): string {
   const ready = node.status?.conditions?.find((c) => c.type === 'Ready')
   if (!ready) return 'Unknown'
   return ready.status === 'True' ? 'Ready' : 'NotReady'
-}
-
-function getBarColor(percentage: number): { bar: string; bg: string; text: string } {
-  if (percentage >= 80) return { bar: 'bg-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-500' }
-  if (percentage >= 50) return { bar: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-500' }
-  return { bar: 'bg-red-500', bg: 'bg-red-500/10', text: 'text-red-500' }
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -172,7 +100,7 @@ function ConditionBadge({ status }: { status: string }) {
   )
 }
 
-function ResourceProgressBar({ label, icon, values }: { label: string; icon: string; values: ResourceValues | null }) {
+function ResourceProgressBar({ label, icon, values }: { label: string; icon: string; values: ResourceBarData | null }) {
   if (!values) {
     return (
       <div className="space-y-2">
@@ -184,7 +112,7 @@ function ResourceProgressBar({ label, icon, values }: { label: string; icon: str
     )
   }
 
-  const color = getBarColor(values.percentage)
+  const color = values.mode === 'usage' ? getUsageBarColor(values.percentage) : getAllocatableBarColor(values.percentage)
 
   return (
     <div className="space-y-2">
@@ -196,7 +124,7 @@ function ResourceProgressBar({ label, icon, values }: { label: string; icon: str
         <div className="flex items-center gap-2">
           <span className={`font-semibold ${color.text}`}>{values.percentage}%</span>
           <span className="text-slate-500 dark:text-slate-400 text-xs">
-            {values.allocatableDisplay} / {values.capacityDisplay}
+            {values.usedDisplay} / {values.totalDisplay}
           </span>
         </div>
       </div>
@@ -257,6 +185,7 @@ function NodeDetailPage() {
     namespaced: true,
     fieldSelector: `spec.nodeName=${name}`,
   })
+  const { data: metricsData } = useNodeMetricsByName(name)
 
   const node = nodeData as KubeNode | undefined
   const podsList = podsData as KubeListResponse | undefined
@@ -286,22 +215,53 @@ function NodeDetailPage() {
   const nodeInfo = node.status?.nodeInfo
   const addresses = node.status?.addresses ?? []
   const internalIP = addresses.find((a) => a.type === 'InternalIP')?.address ?? '-'
-  const cpuValues = getCpuValues(node)
-  const memoryValues = getMemoryValues(node)
+  const metricsUsage = metricsData?.available ? metricsData.usage : undefined
+  const hasMetrics = !!metricsUsage
+
+  let cpuValues: ResourceBarData | null = null
+  const cpuCapacityRaw = node.status?.capacity?.cpu
+  if (cpuCapacityRaw) {
+    const capacityCores = parseCpuToCores(cpuCapacityRaw)
+    if (metricsUsage) {
+      const usedCores = parseCpuToCores(metricsUsage.cpu)
+      const pct = capacityCores > 0 ? Math.round((usedCores / capacityCores) * 100) : 0
+      cpuValues = { percentage: pct, usedDisplay: formatCpu(usedCores * 1000), totalDisplay: `${capacityCores} Cores`, mode: 'usage' }
+    } else {
+      const allocRaw = node.status?.allocatable?.cpu
+      if (allocRaw) {
+        const allocCores = parseCpuToCores(allocRaw)
+        const pct = capacityCores > 0 ? Math.round((allocCores / capacityCores) * 100) : 0
+        cpuValues = { percentage: pct, usedDisplay: `${allocCores.toFixed(1)}`, totalDisplay: `${capacityCores} Cores`, mode: 'allocatable' }
+      }
+    }
+  }
+
+  let memoryValues: ResourceBarData | null = null
+  const memCapacityRaw = node.status?.capacity?.memory
+  if (memCapacityRaw) {
+    const capacityBytes = parseMemoryToBytes(memCapacityRaw)
+    if (metricsUsage) {
+      const usedBytes = parseMemoryToBytes(metricsUsage.memory)
+      const pct = capacityBytes > 0 ? Math.round((usedBytes / capacityBytes) * 100) : 0
+      memoryValues = { percentage: pct, usedDisplay: formatMemory(usedBytes), totalDisplay: formatMemory(capacityBytes), mode: 'usage' }
+    } else {
+      const allocRaw = node.status?.allocatable?.memory
+      if (allocRaw) {
+        const allocBytes = parseMemoryToBytes(allocRaw)
+        const pct = capacityBytes > 0 ? Math.round((allocBytes / capacityBytes) * 100) : 0
+        memoryValues = { percentage: pct, usedDisplay: formatMemory(allocBytes), totalDisplay: formatMemory(capacityBytes), mode: 'allocatable' }
+      }
+    }
+  }
+
+  let ephemeralValues: ResourceBarData | null = null
   const ephemeralCapacityRaw = node.status?.capacity?.['ephemeral-storage']
   const ephemeralAllocatableRaw = node.status?.allocatable?.['ephemeral-storage']
-  let ephemeralValues: ResourceValues | null = null
   if (ephemeralCapacityRaw && ephemeralAllocatableRaw) {
-    const capacity = parseMemoryBytes(ephemeralCapacityRaw)
-    const allocatable = parseMemoryBytes(ephemeralAllocatableRaw)
+    const capacity = parseMemoryToBytes(ephemeralCapacityRaw)
+    const allocatable = parseMemoryToBytes(ephemeralAllocatableRaw)
     const percentage = capacity > 0 ? Math.round((allocatable / capacity) * 100) : 0
-    ephemeralValues = {
-      allocatable,
-      capacity,
-      percentage,
-      allocatableDisplay: formatMemoryGi(allocatable),
-      capacityDisplay: formatMemoryGi(capacity),
-    }
+    ephemeralValues = { percentage, usedDisplay: formatMemory(allocatable), totalDisplay: formatMemory(capacity), mode: 'allocatable' }
   }
 
   const tabs: Array<{ id: TabId; label: string }> = [
@@ -357,12 +317,12 @@ function NodeDetailPage() {
               <div className="px-6 py-4 border-b border-border-light dark:border-border-dark">
                 <h3 className="text-base font-bold flex items-center gap-2">
                   <span className="material-symbols-outlined text-[20px] text-primary">bar_chart</span>
-                  Allocated Resources
+                  {hasMetrics ? 'Resource Usage' : 'Allocated Resources'}
                 </h3>
               </div>
               <div className="p-6 space-y-5">
-                <ResourceProgressBar label="CPU Requests" icon="memory" values={cpuValues} />
-                <ResourceProgressBar label="Memory Requests" icon="storage" values={memoryValues} />
+                <ResourceProgressBar label={hasMetrics ? 'CPU Usage' : 'CPU Allocatable'} icon="memory" values={cpuValues} />
+                <ResourceProgressBar label={hasMetrics ? 'Memory Usage' : 'Memory Allocatable'} icon="storage" values={memoryValues} />
                 <ResourceProgressBar label="Ephemeral Storage" icon="hard_drive" values={ephemeralValues} />
               </div>
             </div>
