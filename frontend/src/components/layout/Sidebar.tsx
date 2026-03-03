@@ -10,6 +10,7 @@ const CLUSTER_NAV = [
   { label: 'Nodes', icon: 'dns', href: '/nodes' },
   { label: 'Events', icon: 'event_note', href: '/events' },
   { label: 'Namespaces', icon: 'folder', href: '/namespaces' },
+  { label: 'Logs', icon: 'article', href: '/logs' },
 ] as const
 
 const KIND_ICONS: Record<string, string> = {
