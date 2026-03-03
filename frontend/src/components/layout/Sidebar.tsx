@@ -2,7 +2,6 @@ import { useState, useMemo, memo, useCallback } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useAPIResources } from '#/hooks/use-api-resources'
 import { usePrometheusStatus } from '#/hooks/use-prometheus'
-import { ClusterHealth } from '#/components/layout/ClusterHealth'
 import type { ResourceGroup } from '#/types'
 
 const CLUSTER_NAV = [
@@ -124,8 +123,6 @@ export const Sidebar = memo(function Sidebar() {
           <SidebarGroup key={group.label} group={group} />
         ))}
       </nav>
-
-      <ClusterHealth />
     </aside>
   )
 })

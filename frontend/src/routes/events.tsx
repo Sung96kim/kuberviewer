@@ -1,9 +1,11 @@
 import { useState, useMemo, useCallback } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useResourceList } from '#/hooks/use-resource-list'
 import { relativeTime } from '#/lib/time'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { QueryError } from '#/components/QueryError'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 
@@ -64,6 +66,7 @@ function EventRowSkeleton() {
       <td className="px-6 py-4"><Skeleton className="h-4 w-64" /></td>
       <td className="px-6 py-4"><Skeleton className="h-4 w-8" /></td>
       <td className="px-6 py-4"><Skeleton className="h-4 w-12" /></td>
+      <td className="px-6 py-4"><Skeleton className="h-6 w-6 rounded" /></td>
     </tr>
   )
 }
@@ -122,6 +125,34 @@ function getVisiblePageNumbers(currentPage: number, totalPages: number): (number
   return pages
 }
 
+function getResourceLinkPath(kind: string, name: string, namespace?: string): string {
+  const kindMap: Record<string, { group: string; version: string; resource: string }> = {
+    Pod: { group: '', version: 'v1', resource: 'pods' },
+    Deployment: { group: 'apps', version: 'v1', resource: 'deployments' },
+    ReplicaSet: { group: 'apps', version: 'v1', resource: 'replicasets' },
+    Service: { group: '', version: 'v1', resource: 'services' },
+    ConfigMap: { group: '', version: 'v1', resource: 'configmaps' },
+    Secret: { group: '', version: 'v1', resource: 'secrets' },
+    StatefulSet: { group: 'apps', version: 'v1', resource: 'statefulsets' },
+    DaemonSet: { group: 'apps', version: 'v1', resource: 'daemonsets' },
+    Job: { group: 'batch', version: 'v1', resource: 'jobs' },
+    CronJob: { group: 'batch', version: 'v1', resource: 'cronjobs' },
+    Node: { group: '', version: 'v1', resource: 'nodes' },
+    Namespace: { group: '', version: 'v1', resource: 'namespaces' },
+    PersistentVolumeClaim: { group: '', version: 'v1', resource: 'persistentvolumeclaims' },
+    Ingress: { group: 'networking.k8s.io', version: 'v1', resource: 'ingresses' },
+    HorizontalPodAutoscaler: { group: 'autoscaling', version: 'v2', resource: 'horizontalpodautoscalers' },
+  }
+
+  const mapping = kindMap[kind]
+  if (!mapping) return ''
+
+  const groupVersion = mapping.group ? `${mapping.group}/${mapping.version}` : mapping.version
+  return namespace
+    ? `${groupVersion}/${mapping.resource}/${namespace}/${name}`
+    : `${groupVersion}/${mapping.resource}/${name}`
+}
+
 function EventsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('All')
   const [namespaceFilter, setNamespaceFilter] = useState<string>('All')
@@ -131,7 +162,7 @@ function EventsPage() {
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE)
 
   const queryClient = useQueryClient()
-  const { data, isLoading, isError, error } = useResourceList({
+  const { data, isLoading, isError, error, isFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'events',
@@ -239,6 +270,7 @@ function EventsPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight font-display">Cluster Events</h1>
+            <RefetchIndicator fetching={isFetching} />
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -252,6 +284,7 @@ function EventsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <PollingSettings />
           <button onClick={handleRefresh} className={iconButtonClasses}>
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Refresh
@@ -334,6 +367,7 @@ function EventsPage() {
                 <th className="px-6 py-4">Message</th>
                 <th className="px-6 py-4 w-20 text-center">Count</th>
                 <th className="px-6 py-4 w-28 text-right">Last Seen</th>
+                <th className="px-6 py-4 w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-light dark:divide-border-dark">
@@ -341,7 +375,7 @@ function EventsPage() {
                 Array.from({ length: 8 }).map((_, i) => <EventRowSkeleton key={i} />)
               ) : paginatedEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <span className="material-symbols-outlined text-4xl text-slate-500 dark:text-slate-600 mb-2 block">event_note</span>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">No events found</p>
                   </td>
@@ -349,6 +383,8 @@ function EventsPage() {
               ) : (
                 paginatedEvents.map((event) => {
                   const lastSeen = event.lastTimestamp ?? event.metadata.creationTimestamp
+                  const objectNs = event.involvedObject.namespace ?? event.metadata.namespace
+                  const linkPath = getResourceLinkPath(event.involvedObject.kind, event.involvedObject.name, objectNs)
 
                   return (
                     <tr key={event.metadata.name} className="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
@@ -360,11 +396,21 @@ function EventsPage() {
                       </td>
                       <td className="px-6 py-4 align-top">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium text-primary">
-                            {event.involvedObject.kind.toLowerCase()}/{event.involvedObject.name}
-                          </span>
+                          {linkPath ? (
+                            <Link
+                              to="/resources/$"
+                              params={{ _splat: linkPath }}
+                              className="text-sm font-medium text-primary hover:underline"
+                            >
+                              {event.involvedObject.kind.toLowerCase()}/{event.involvedObject.name}
+                            </Link>
+                          ) : (
+                            <span className="text-sm font-medium text-primary">
+                              {event.involvedObject.kind.toLowerCase()}/{event.involvedObject.name}
+                            </span>
+                          )}
                           <span className="text-xs text-slate-500 dark:text-slate-400">
-                            namespace: {event.involvedObject.namespace ?? event.metadata.namespace}
+                            namespace: {objectNs}
                           </span>
                         </div>
                       </td>
@@ -376,6 +422,18 @@ function EventsPage() {
                       </td>
                       <td className="px-6 py-4 align-top text-slate-500 dark:text-slate-400 text-right font-mono text-xs">
                         {relativeTime(lastSeen)}
+                      </td>
+                      <td className="px-6 py-4 align-top">
+                        {linkPath && (
+                          <Link
+                            to="/resources/$"
+                            params={{ _splat: linkPath }}
+                            className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                            title="Inspect resource"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                          </Link>
+                        )}
                       </td>
                     </tr>
                   )

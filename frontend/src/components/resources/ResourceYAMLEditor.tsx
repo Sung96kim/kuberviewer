@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { stringify as yamlStringify, parse as yamlParse } from 'yaml'
 import { api } from '#/api'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '#/components/ui/dialog'
@@ -139,6 +139,8 @@ const LINE_NUM_COLOR: Record<string, string> = {
   empty: '',
 }
 
+type ApplyStatus = 'idle' | 'applying' | 'success' | 'error'
+
 type YAMLDiffModalProps = {
   open: boolean
   onClose: () => void
@@ -147,22 +149,57 @@ type YAMLDiffModalProps = {
   modifiedYaml: string
   resourceName: string
   isApplying: boolean
+  applyStatus: ApplyStatus
+  applyError: string | null
 }
 
-function YAMLDiffModal({ open, onClose, onConfirm, originalYaml, modifiedYaml, resourceName, isApplying }: YAMLDiffModalProps) {
+function YAMLDiffModal({ open, onClose, onConfirm, originalYaml, modifiedYaml, resourceName, isApplying, applyStatus, applyError }: YAMLDiffModalProps) {
   const diffEntries = useMemo(() => computeDiff(originalYaml, modifiedYaml), [originalYaml, modifiedYaml])
   const sideBySide = useMemo(() => buildSideBySideLines(diffEntries), [diffEntries])
   const stats = useMemo(() => getDiffStats(diffEntries), [diffEntries])
 
   return (
-    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose() }}>
-      <DialogContent className="sm:max-w-5xl max-h-[85vh] flex flex-col bg-[#1e1e1e] border-[#333] p-0 gap-0" showCloseButton={false}>
+    <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen && !isApplying) onClose() }}>
+      <DialogContent className="sm:max-w-[90vw] lg:max-w-7xl max-h-[85vh] flex flex-col bg-[#1e1e1e] border-[#333] p-0 gap-0" showCloseButton={false}>
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-[#333] shrink-0">
           <DialogTitle className="text-white text-lg font-bold">Confirm Changes</DialogTitle>
           <DialogDescription className="text-slate-400 text-sm">
             Review the changes before applying to <span className="text-slate-200 font-medium">{resourceName}</span>
           </DialogDescription>
         </DialogHeader>
+
+        {applyStatus === 'applying' && (
+          <div className="px-6 py-3 border-b border-[#333] shrink-0">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="material-symbols-outlined text-blue-400 text-[18px] animate-spin">progress_activity</span>
+              <span className="text-sm text-blue-400 font-medium">Applying changes...</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[#333] overflow-hidden">
+              <div className="h-full rounded-full bg-blue-500 animate-pulse" style={{ width: '60%' }} />
+            </div>
+          </div>
+        )}
+
+        {applyStatus === 'success' && (
+          <div className="px-6 py-3 border-b border-emerald-500/20 bg-emerald-500/5 shrink-0">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="material-symbols-outlined text-emerald-400 text-[18px]">check_circle</span>
+              <span className="text-sm text-emerald-400 font-medium">Changes applied successfully</span>
+            </div>
+            <div className="h-1.5 rounded-full bg-[#333] overflow-hidden">
+              <div className="h-full rounded-full bg-emerald-500 transition-all duration-500" style={{ width: '100%' }} />
+            </div>
+          </div>
+        )}
+
+        {applyStatus === 'error' && applyError && (
+          <div className="px-6 py-3 border-b border-red-500/20 bg-red-500/5 shrink-0">
+            <div className="flex items-center gap-3">
+              <span className="material-symbols-outlined text-red-400 text-[18px]">error</span>
+              <span className="text-sm text-red-400 font-medium">{applyError}</span>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 overflow-hidden flex flex-col min-h-0">
           <div className="grid grid-cols-2 border-b border-[#333] shrink-0">
@@ -182,7 +219,7 @@ function YAMLDiffModal({ open, onClose, onConfirm, originalYaml, modifiedYaml, r
                     <span className={`w-12 shrink-0 text-right pr-3 select-none ${LINE_NUM_COLOR[row.left.type]}`}>
                       {row.left.lineNumber ?? ''}
                     </span>
-                    <span className={`flex-1 pl-2 pr-4 whitespace-pre ${row.left.type === 'remove' ? 'text-red-300' : 'text-[#d4d4d4]'}`}>
+                    <span className={`flex-1 pl-2 pr-4 whitespace-pre-wrap break-all ${row.left.type === 'remove' ? 'text-red-300' : 'text-[#d4d4d4]'}`}>
                       {row.left.text}
                     </span>
                   </div>
@@ -190,7 +227,7 @@ function YAMLDiffModal({ open, onClose, onConfirm, originalYaml, modifiedYaml, r
                     <span className={`w-12 shrink-0 text-right pr-3 select-none ${LINE_NUM_COLOR[row.right.type]}`}>
                       {row.right.lineNumber ?? ''}
                     </span>
-                    <span className={`flex-1 pl-2 pr-4 whitespace-pre ${row.right.type === 'add' ? 'text-emerald-300' : 'text-[#d4d4d4]'}`}>
+                    <span className={`flex-1 pl-2 pr-4 whitespace-pre-wrap break-all ${row.right.type === 'add' ? 'text-emerald-300' : 'text-[#d4d4d4]'}`}>
                       {row.right.text}
                     </span>
                   </div>
@@ -207,12 +244,20 @@ function YAMLDiffModal({ open, onClose, onConfirm, originalYaml, modifiedYaml, r
             <span className="text-red-400 font-medium">-{stats.deletions} Deletion{stats.deletions !== 1 ? 's' : ''}</span>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={onClose} disabled={isApplying} className="border-[#444] text-slate-300 hover:bg-[#333]">
-              Cancel
-            </Button>
-            <Button onClick={onConfirm} disabled={isApplying} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-              {isApplying ? 'Applying...' : 'Confirm Deployment'}
-            </Button>
+            {applyStatus === 'success' ? (
+              <Button onClick={onClose} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                Done
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={onClose} disabled={isApplying} className="border-[#444] text-slate-300 hover:bg-[#333]">
+                  Cancel
+                </Button>
+                <Button onClick={onConfirm} disabled={isApplying} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  {isApplying ? 'Applying...' : 'Confirm Deployment'}
+                </Button>
+              </>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
@@ -234,6 +279,7 @@ export function ResourceYAMLEditor({ resource, group, version, resourceType, nam
   const [copied, setCopied] = useState(false)
   const [showDiffModal, setShowDiffModal] = useState(false)
   const [isApplying, setIsApplying] = useState(false)
+  const [applyStatus, setApplyStatus] = useState<ApplyStatus>('idle')
   const [error, setError] = useState<string | null>(null)
 
   const originalContent = useMemo(() => {
@@ -243,6 +289,13 @@ export function ResourceYAMLEditor({ resource, group, version, resourceType, nam
   }, [resource, format])
 
   const [editedContent, setEditedContent] = useState(originalContent)
+  const userEditedRef = useRef(false)
+
+  useEffect(() => {
+    if (!userEditedRef.current) {
+      setEditedContent(originalContent)
+    }
+  }, [originalContent])
 
   const resourceName = (resource as { metadata?: { name?: string } }).metadata?.name ?? 'resource'
   const hasChanges = editedContent !== originalContent
@@ -255,11 +308,18 @@ export function ResourceYAMLEditor({ resource, group, version, resourceType, nam
 
   const handleApplyClick = useCallback(() => {
     setError(null)
+    setApplyStatus('idle')
     setShowDiffModal(true)
+  }, [])
+
+  const handleCloseDiffModal = useCallback(() => {
+    setShowDiffModal(false)
+    setApplyStatus('idle')
   }, [])
 
   const handleConfirmApply = useCallback(async () => {
     setIsApplying(true)
+    setApplyStatus('applying')
     setError(null)
     try {
       let parsed: unknown
@@ -279,15 +339,19 @@ export function ResourceYAMLEditor({ resource, group, version, resourceType, nam
         body: parsed,
       })
 
-      setShowDiffModal(false)
+      userEditedRef.current = false
+      setApplyStatus('success')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to apply resource')
+      const message = err instanceof Error ? err.message : 'Failed to apply resource'
+      setError(message)
+      setApplyStatus('error')
     } finally {
       setIsApplying(false)
     }
   }, [format, editedContent, group, version, resourceType, namespaced, namespace, resourceName])
 
   const handleReset = useCallback(() => {
+    userEditedRef.current = false
     setEditedContent(originalContent)
     setError(null)
   }, [originalContent])
@@ -364,7 +428,7 @@ export function ResourceYAMLEditor({ resource, group, version, resourceType, nam
         <div className="flex-1 overflow-auto max-h-[70vh] bg-[#1e1e1e]">
           <textarea
             value={editedContent}
-            onChange={(e) => setEditedContent(e.target.value)}
+            onChange={(e) => { userEditedRef.current = true; setEditedContent(e.target.value) }}
             spellCheck={false}
             className="w-full h-full min-h-[70vh] p-4 font-mono text-xs leading-6 text-[#d4d4d4] bg-transparent resize-none outline-none whitespace-pre"
           />
@@ -373,12 +437,14 @@ export function ResourceYAMLEditor({ resource, group, version, resourceType, nam
 
       <YAMLDiffModal
         open={showDiffModal}
-        onClose={() => setShowDiffModal(false)}
+        onClose={handleCloseDiffModal}
         onConfirm={handleConfirmApply}
         originalYaml={originalContent}
         modifiedYaml={editedContent}
         resourceName={resourceName}
         isApplying={isApplying}
+        applyStatus={applyStatus}
+        applyError={error}
       />
     </>
   )

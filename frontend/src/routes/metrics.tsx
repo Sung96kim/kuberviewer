@@ -12,6 +12,8 @@ import {
 } from '#/hooks/use-prometheus'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import type { PrometheusQueryResponse } from '#/api'
 
 export const Route = createFileRoute('/metrics')({ component: MetricsPage })
@@ -90,6 +92,7 @@ function MetricsChart({
   data,
   series,
   isLoading,
+  isFetching,
   formatValue,
   unit,
 }: {
@@ -98,6 +101,7 @@ function MetricsChart({
   data: ChartDataPoint[]
   series: string[]
   isLoading: boolean
+  isFetching?: boolean
   formatValue: (v: number) => string
   unit: string
 }) {
@@ -132,6 +136,7 @@ function MetricsChart({
       <div className="flex items-center gap-2 mb-4">
         <span className="material-symbols-outlined text-[20px] text-blue-400">{icon}</span>
         <h3 className="font-semibold">{title}</h3>
+        <RefetchIndicator fetching={isFetching ?? false} />
         <span className="text-xs text-slate-500 ml-auto">{unit}</span>
       </div>
       <div className="h-64">
@@ -320,7 +325,9 @@ function MetricsPage() {
             Resource usage over time via Prometheus.
           </p>
         </div>
-        <div className="flex items-center gap-1 px-1 py-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg">
+        <div className="flex items-center gap-2">
+          <PollingSettings />
+          <div className="flex items-center gap-1 px-1 py-1 bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-lg">
           {TIME_RANGES.map(({ value, label }) => (
             <button
               key={value}
@@ -334,6 +341,7 @@ function MetricsPage() {
               {label}
             </button>
           ))}
+          </div>
         </div>
       </div>
 
@@ -385,6 +393,7 @@ function MetricsPage() {
           data={cpuChart.data}
           series={cpuChart.series}
           isLoading={cpuQuery.isLoading}
+          isFetching={cpuQuery.isFetching}
           formatValue={formatCpuValue}
           unit="cores"
         />
@@ -395,6 +404,7 @@ function MetricsPage() {
           data={memChart.data}
           series={memChart.series}
           isLoading={memoryQuery.isLoading}
+          isFetching={memoryQuery.isFetching}
           formatValue={formatMemoryValue}
           unit="bytes"
         />
@@ -405,6 +415,7 @@ function MetricsPage() {
           data={rxChart.data}
           series={rxChart.series}
           isLoading={networkQuery.rx.isLoading}
+          isFetching={networkQuery.rx.isFetching}
           formatValue={formatNetworkValue}
           unit="bytes/sec"
         />
@@ -415,6 +426,7 @@ function MetricsPage() {
           data={txChart.data}
           series={txChart.series}
           isLoading={networkQuery.tx.isLoading}
+          isFetching={networkQuery.tx.isFetching}
           formatValue={formatNetworkValue}
           unit="bytes/sec"
         />

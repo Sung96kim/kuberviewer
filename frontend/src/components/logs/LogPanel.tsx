@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback, memo, forwardRef, useImperativeHandle } from 'react'
 import { Terminal } from 'xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { useLogTerminal } from '#/hooks/use-log-terminal'
 import { useExecTerminal } from '#/hooks/use-exec-terminal'
@@ -9,6 +10,7 @@ import { Button } from '#/components/ui/button'
 export type LogPanelHandle = {
   clear: () => void
   toggleShell: () => void
+  openSearch: () => void
 }
 
 type LogPanelProps = {
@@ -50,13 +52,15 @@ function createTerminal(el: HTMLElement, interactive: boolean) {
   })
 
   const fitAddon = new FitAddon()
+  const searchAddon = new SearchAddon()
   const webLinksAddon = new WebLinksAddon()
   terminal.loadAddon(fitAddon)
+  terminal.loadAddon(searchAddon)
   terminal.loadAddon(webLinksAddon)
   terminal.open(el)
   fitAddon.fit()
 
-  return { terminal, fitAddon }
+  return { terminal, fitAddon, searchAddon }
 }
 
 export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function LogPanel({
@@ -79,16 +83,18 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
   const execTerminalRef = useRef<Terminal | null>(null)
   const logFitRef = useRef<FitAddon | null>(null)
   const execFitRef = useRef<FitAddon | null>(null)
+  const logSearchRef = useRef<SearchAddon | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const draggingRef = useRef(false)
   const [follow, setFollow] = useState(true)
   const [shellOpen, setShellOpen] = useState(false)
-  const [logReady, setLogReady] = useState(false)
   const [execStarted, setExecStarted] = useState(false)
   const [logRatio, setLogRatio] = useState(60)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const logHook = useLogTerminal(
     { namespace, pod, container, tailLines: 1000 },
-    logReady,
   )
 
   const execHook = useExecTerminal({ namespace, pod, container })
@@ -96,12 +102,19 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
   useEffect(() => {
     if (!logContainerRef.current) return
 
-    const { terminal, fitAddon } = createTerminal(logContainerRef.current, false)
+    const { terminal, fitAddon, searchAddon } = createTerminal(logContainerRef.current, false)
     logTerminalRef.current = terminal
     logFitRef.current = fitAddon
+    logSearchRef.current = searchAddon
 
-    logHook.attach(terminal)
-    setLogReady(true)
+    terminal.attachCustomKeyEventHandler((e) => {
+      if (e.type !== 'keydown') return true
+      if (e.key === 'Home') { terminal.scrollToTop(); return false }
+      if (e.key === 'End') { terminal.scrollToBottom(); return false }
+      return true
+    })
+
+    logHook.start(terminal)
 
     const observer = new ResizeObserver(() => fitAddon.fit())
     observer.observe(logContainerRef.current)
@@ -112,7 +125,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
       terminal.dispose()
       logTerminalRef.current = null
       logFitRef.current = null
-      setLogReady(false)
+      logSearchRef.current = null
     }
   }, [namespace, pod, container])
 
@@ -180,6 +193,48 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
     document.body.style.userSelect = 'none'
   }, [])
 
+  const openSearch = useCallback(() => {
+    setSearchOpen(true)
+    requestAnimationFrame(() => searchInputRef.current?.focus())
+  }, [])
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false)
+    setSearchQuery('')
+    logSearchRef.current?.clearDecorations()
+  }, [])
+
+  const searchNext = useCallback(() => {
+    if (searchQuery) logSearchRef.current?.findNext(searchQuery)
+  }, [searchQuery])
+
+  const searchPrev = useCallback(() => {
+    if (searchQuery) logSearchRef.current?.findPrevious(searchQuery)
+  }, [searchQuery])
+
+  useEffect(() => {
+    if (!searchOpen) return
+    if (searchQuery) {
+      logSearchRef.current?.findNext(searchQuery)
+    } else {
+      logSearchRef.current?.clearDecorations()
+    }
+  }, [searchQuery, searchOpen])
+
+  useEffect(() => {
+    const el = panelRef.current
+    if (!el) return
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+        e.preventDefault()
+        e.stopPropagation()
+        openSearch()
+      }
+    }
+    el.addEventListener('keydown', handler, true)
+    return () => el.removeEventListener('keydown', handler, true)
+  }, [openSearch])
+
   useImperativeHandle(ref, () => ({
     clear: () => logTerminalRef.current?.clear(),
     toggleShell: () => {
@@ -196,7 +251,8 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
       textarea?.blur()
       setShellOpen(false)
     },
-  }), [shellOpen, execStarted])
+    openSearch,
+  }), [shellOpen, execStarted, openSearch])
 
   const handleClear = () => {
     logTerminalRef.current?.clear()
@@ -300,6 +356,41 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
           </Button>
         </div>
       </div>
+
+      {/* Search bar */}
+      {searchOpen && (
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-800/90 border-b border-slate-700 shrink-0">
+          <span className="material-symbols-outlined text-[14px] text-slate-400">search</span>
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                if (e.shiftKey) searchPrev()
+                else searchNext()
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault()
+                closeSearch()
+              }
+            }}
+            placeholder="Search logs..."
+            className="flex-1 text-xs bg-slate-900 text-slate-200 border border-slate-600 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-slate-500"
+          />
+          <Button variant="ghost" size="icon-xs" onClick={searchPrev} className="text-slate-400 hover:text-slate-200 hover:bg-slate-700" title="Previous (Shift+Enter)">
+            <span className="material-symbols-outlined text-[14px]">expand_less</span>
+          </Button>
+          <Button variant="ghost" size="icon-xs" onClick={searchNext} className="text-slate-400 hover:text-slate-200 hover:bg-slate-700" title="Next (Enter)">
+            <span className="material-symbols-outlined text-[14px]">expand_more</span>
+          </Button>
+          <Button variant="ghost" size="icon-xs" onClick={closeSearch} className="text-slate-400 hover:text-slate-200 hover:bg-slate-700" title="Close (Esc)">
+            <span className="material-symbols-outlined text-[14px]">close</span>
+          </Button>
+        </div>
+      )}
 
       {/* Log terminal */}
       <div

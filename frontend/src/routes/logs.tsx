@@ -323,6 +323,7 @@ const HOTKEYS: { key: string; label: string }[] = [
   { key: '↑↓←→', label: 'Navigate panels' },
   { key: 'F', label: 'Focus/unfocus panel' },
   { key: 'T / Ctrl+`', label: 'Toggle shell' },
+  { key: 'Ctrl+F', label: 'Search logs' },
   { key: 'C', label: 'Clear logs' },
   { key: 'X', label: 'Close panel' },
   { key: 'A', label: 'Add pods' },
@@ -419,8 +420,8 @@ function GroupTab({ group, active, index, isOnly, editing, onSelect, onStartRena
           dragOver
             ? 'border-primary bg-primary/10'
             : active
-              ? 'bg-slate-800 text-white border-slate-600'
-              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 border-transparent'
+              ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-border-light dark:border-slate-600'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-transparent'
         )}
       >
         {editing ? (
@@ -438,17 +439,17 @@ function GroupTab({ group, active, index, isOnly, editing, onSelect, onStartRena
           />
         ) : (
           <>
-            <span className="text-[10px] text-slate-500">{index + 1}</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">{index + 1}</span>
             <span className="truncate max-w-[120px]">{group.name}</span>
-            <span className="text-[10px] text-slate-500">({group.panels.length})</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">({group.panels.length})</span>
           </>
         )}
       </button>
       {!editing && (
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
-            <button className="opacity-0 group-hover/tab:opacity-100 p-0.5 rounded hover:bg-slate-700 transition-all">
-              <span className="material-symbols-outlined text-[14px] text-slate-400">more_vert</span>
+            <button className="opacity-0 group-hover/tab:opacity-100 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+              <span className="material-symbols-outlined text-[14px] text-slate-500 dark:text-slate-400">more_vert</span>
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-40">
@@ -615,6 +616,12 @@ function LogsPage() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'f' && activeId) {
+        e.preventDefault()
+        panelRefs.current.get(activeId)?.openSearch()
+        return
+      }
+
       if (e.ctrlKey && e.key === '`' && activeId) {
         e.preventDefault()
         panelRefs.current.get(activeId)?.toggleShell()
@@ -771,7 +778,7 @@ function LogsPage() {
         </div>
       </div>
 
-      <div className="flex items-center gap-1 shrink-0 border-b border-slate-700 overflow-x-auto">
+      <div className="flex items-center gap-1 shrink-0 border-b border-border-light dark:border-border-dark overflow-x-auto">
         {groupsState.groups.map((group, i) => (
           <GroupTab
             key={group.id}
@@ -791,7 +798,7 @@ function LogsPage() {
         ))}
         <button
           onClick={addGroup}
-          className="flex items-center justify-center size-7 rounded-t-md text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+          className="flex items-center justify-center size-7 rounded-t-md text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
           title="New group (N)"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
@@ -801,8 +808,8 @@ function LogsPage() {
       {(panels.length > 0 || groupsState.groups.length > 1) && (
         <div className="flex items-center gap-4 shrink-0 flex-wrap">
           {HOTKEYS.map(({ key, label }) => (
-            <span key={key} className="text-[11px] text-slate-500 flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded border border-slate-700 bg-slate-800 text-slate-400 font-mono text-[10px] leading-none">{key}</kbd>
+            <span key={key} className="text-[11px] text-slate-500 dark:text-slate-500 flex items-center gap-1">
+              <kbd className="px-1 py-0.5 rounded border border-border-light dark:border-border-dark bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono text-[10px] leading-none">{key}</kbd>
               {label}
             </span>
           ))}

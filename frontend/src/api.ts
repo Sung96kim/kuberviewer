@@ -86,7 +86,10 @@ function toQueryString(params: Record<string, string | number | boolean | undefi
 
 export type ClusterHealthResponse = {
   nodes: { total: number; ready: number }
-  pods: { total: number; running: number }
+  pods: { total: number; running: number; failed: number; pending: number; issues: Record<string, number> }
+  deployments: { total: number; ready: number }
+  namespaces: number
+  services: number
 }
 
 export type NodeMetricItem = {
@@ -224,6 +227,20 @@ export const api = {
     body: unknown
   }) =>
     request<Record<string, unknown>>('/resources/patch', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  scaleResource: (body: {
+    group: string
+    version: string
+    name: string
+    namespaced: boolean
+    namespace?: string
+    resourceName?: string
+    replicas: number
+  }) =>
+    request<Record<string, unknown>>('/resources/scale', {
       method: 'POST',
       body: JSON.stringify(body),
     }),

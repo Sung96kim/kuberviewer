@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '#/api'
+import { usePollingInterval } from '#/hooks/use-polling'
 import type { PrometheusQueryResponse } from '#/api'
 
 export function usePrometheusStatus() {
@@ -35,6 +36,7 @@ function usePromRangeQuery(
   timeRange: TimeRange,
   enabled: boolean,
 ) {
+  const interval = usePollingInterval(30_000)
   const now = Math.floor(Date.now() / 1000)
   const start = now - TIME_RANGE_SECONDS[timeRange]
   const step = TIME_RANGE_STEP[timeRange]
@@ -43,7 +45,7 @@ function usePromRangeQuery(
     queryKey: [...queryKey, timeRange],
     queryFn: () => api.prometheusQueryRange({ query: promql, start, end: now, step }),
     enabled,
-    refetchInterval: 30_000,
+    refetchInterval: interval,
     staleTime: 15_000,
   })
 }

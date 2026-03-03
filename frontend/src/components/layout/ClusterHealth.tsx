@@ -1,13 +1,16 @@
 import { memo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '#/api'
+import { usePollingInterval } from '#/hooks/use-polling'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
 
 export const ClusterHealth = memo(function ClusterHealth() {
-  const { data, isLoading } = useQuery({
+  const healthInterval = usePollingInterval(60_000)
+  const { data, isLoading, isFetching } = useQuery({
     queryKey: ['cluster-health'],
     queryFn: () => api.clusterHealth(),
     staleTime: 60_000,
-    refetchInterval: 60_000,
+    refetchInterval: healthInterval,
   })
 
   if (isLoading || !data) {
@@ -39,6 +42,7 @@ export const ClusterHealth = memo(function ClusterHealth() {
           <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${allHealthy ? 'bg-emerald-500' : 'bg-yellow-500'}`} />
         </span>
         <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Cluster Health</span>
+        <RefetchIndicator fetching={isFetching} />
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-slate-100 dark:bg-slate-900/50 rounded-lg px-3 py-2">

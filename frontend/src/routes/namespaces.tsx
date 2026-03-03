@@ -4,6 +4,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useResourceList } from '#/hooks/use-resource-list'
 import { relativeTime } from '#/lib/time'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { QueryError } from '#/components/QueryError'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 
@@ -136,7 +138,7 @@ function NamespacesPage() {
   const [currentPage, setCurrentPage] = useState(1)
 
   const queryClient = useQueryClient()
-  const { data, isLoading, isError, error } = useResourceList({
+  const { data, isLoading, isError, error, isFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'namespaces',
@@ -191,6 +193,7 @@ function NamespacesPage() {
             Manage and monitor the virtual clusters within your environment.
           </p>
         </div>
+        <PollingSettings />
       </div>
 
       {isError && (
@@ -244,7 +247,8 @@ function NamespacesPage() {
             <option value="Terminating">Terminating</option>
           </select>
           {!isLoading && (
-            <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto whitespace-nowrap">
+            <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto whitespace-nowrap flex items-center gap-1.5">
+              <RefetchIndicator fetching={isFetching} />
               {filteredNamespaces.length} result{filteredNamespaces.length !== 1 ? 's' : ''}
             </span>
           )}

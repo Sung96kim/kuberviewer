@@ -159,3 +159,22 @@ async def patch_resource(
     api_client = KubeManager.get_instance().get_api_client()
     path = build_resource_url(group, version, name, namespaced, namespace, resource_name)
     return await asyncio.to_thread(_kube_patch, api_client, path, body)
+
+
+async def scale_resource(
+    group: str,
+    version: str,
+    name: str,
+    namespaced: bool,
+    replicas: int,
+    namespace: str | None = None,
+    resource_name: str | None = None,
+) -> dict[str, Any]:
+    api_client = KubeManager.get_instance().get_api_client()
+    path = build_resource_url(group, version, name, namespaced, namespace, resource_name)
+    scale_path = f"{path}/scale"
+    current = await asyncio.to_thread(_kube_request, api_client, scale_path, "GET")
+    current["spec"] = {"replicas": replicas}
+    return await asyncio.to_thread(
+        _kube_request, api_client, scale_path, "PUT", body=current
+    )

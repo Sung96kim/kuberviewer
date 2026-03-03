@@ -1,7 +1,7 @@
 import { memo, useMemo, useState, useRef, useEffect, useCallback } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '#/components/ui/dialog'
 import { useResource } from '#/hooks/use-resource'
-import { useLogStream } from '#/hooks/use-log-stream'
+import { LogTerminalView } from '#/components/logs/LogTerminalView'
 import { TerminalSessionView } from '#/components/terminal/TerminalSession'
 import { relativeTime } from '#/lib/time'
 
@@ -312,14 +312,21 @@ const PodInspectContent = memo(function PodInspectContent({
 
           <div ref={rightPanelRef} className="flex flex-col min-h-0 min-w-0" style={{ flex: leftCollapsed ? 1 : 100 - leftWidth }}>
             <div className="flex flex-col min-h-0" style={{ flex: showTerminal ? logRatio : 1 }}>
-              <LogViewer
+              <LogTerminalView
                 namespace={namespace}
                 podName={podName}
                 containers={containers}
                 selectedContainer={selectedContainer}
                 onContainerChange={setSelectedContainer}
-                showTerminal={showTerminal}
-                onToggleTerminal={() => setShowTerminal((v) => !v)}
+                toolbarExtra={
+                  <button
+                    onClick={() => setShowTerminal((v) => !v)}
+                    className={`p-1 rounded transition-colors ${showTerminal ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}
+                    title={showTerminal ? 'Hide terminal' : 'Open terminal'}
+                  >
+                    <span className="material-symbols-outlined text-[16px]">terminal</span>
+                  </button>
+                }
               />
             </div>
             {showTerminal && selectedContainer && (
@@ -376,164 +383,3 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-const LogViewer = memo(function LogViewer({
-  namespace,
-  podName,
-  containers,
-  selectedContainer,
-  onContainerChange,
-  showTerminal,
-  onToggleTerminal,
-}: {
-  namespace: string
-  podName: string
-  containers: string[]
-  selectedContainer: string
-  onContainerChange: (container: string) => void
-  showTerminal: boolean
-  onToggleTerminal: () => void
-}) {
-  const [follow, setFollow] = useState(true)
-  const [wrapLines, setWrapLines] = useState(true)
-  const [filterText, setFilterText] = useState('')
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  const { lines, connected, error, clear } = useLogStream(
-    {
-      namespace,
-      pod: podName,
-      container: selectedContainer || undefined,
-      tailLines: 500,
-      follow,
-    },
-    !!selectedContainer,
-  )
-
-  const filteredLines = filterText
-    ? lines.filter((l) => l.toLowerCase().includes(filterText.toLowerCase()))
-    : lines
-
-  useEffect(() => {
-    if (follow && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [filteredLines.length, follow])
-
-  const handleWheel = useCallback(() => {
-    if (!scrollRef.current || !follow) return
-    setTimeout(() => {
-      if (!scrollRef.current) return
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
-      if (!isAtBottom) setFollow(false)
-    }, 0)
-  }, [follow])
-
-  return (
-    <div className="flex flex-col h-full min-h-0">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border-light dark:border-border-dark shrink-0 overflow-hidden">
-        <span className="material-symbols-outlined text-[16px] text-slate-500 dark:text-slate-400 shrink-0">terminal</span>
-        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider shrink-0">Logs</span>
-
-        {containers.length > 1 && (
-          <select
-            value={selectedContainer}
-            onChange={(e) => onContainerChange(e.target.value)}
-            className="ml-2 px-2 py-1 rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-background-dark text-xs text-slate-700 dark:text-slate-300 shrink-0"
-          >
-            {containers.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        )}
-        {containers.length === 1 && (
-          <span className="text-xs text-slate-500 ml-2 shrink-0">{selectedContainer}</span>
-        )}
-
-        <div className="ml-auto flex items-center gap-2 shrink-0">
-          <div className="relative w-[160px]">
-            <span className="absolute left-2 top-1/2 -translate-y-1/2 material-symbols-outlined text-[13px] text-slate-400" style={{ fontVariationSettings: "'opsz' 20, 'wght' 300" }}>search</span>
-            <input
-              type="text"
-              value={filterText}
-              onChange={(e) => setFilterText(e.target.value)}
-              placeholder="Filter..."
-              className="w-full pl-7 pr-3 py-1 bg-slate-50 dark:bg-background-dark border border-border-light dark:border-border-dark rounded text-xs text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none"
-            />
-          </div>
-
-          <div className="flex items-center gap-1">
-            <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-            <button
-              onClick={() => setFollow(!follow)}
-              className={`p-1 rounded transition-colors ${follow ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-              title={follow ? 'Following' : 'Follow'}
-            >
-              <span className="material-symbols-outlined text-[14px]">vertical_align_bottom</span>
-            </button>
-            <button
-              onClick={() => setWrapLines(!wrapLines)}
-              className={`p-1 rounded transition-colors ${wrapLines ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-              title={wrapLines ? 'Wrap on' : 'Wrap off'}
-            >
-              <span className="material-symbols-outlined text-[14px]">wrap_text</span>
-            </button>
-            <button
-              onClick={clear}
-              className="p-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-              title="Clear"
-            >
-              <span className="material-symbols-outlined text-[14px]">delete</span>
-            </button>
-            <button
-              onClick={onToggleTerminal}
-              className={`p-1 rounded transition-colors ${showTerminal ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-              title={showTerminal ? 'Hide terminal' : 'Open terminal'}
-            >
-              <span className="material-symbols-outlined text-[14px]">terminal</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {error && (
-        <div className="px-4 py-2 text-xs text-red-400 bg-red-500/10 border-b border-border-light dark:border-border-dark shrink-0">{error}</div>
-      )}
-
-      <div
-        ref={scrollRef}
-        onWheel={handleWheel}
-        className="flex-1 overflow-auto bg-white dark:bg-slate-950 font-mono text-xs p-2 min-h-0"
-      >
-        {filteredLines.length === 0 && !error && (
-          <div className="flex items-center justify-center h-full text-slate-600 text-xs">
-            {connected ? 'Waiting for log output...' : lines.length === 0 ? 'No logs available' : 'No lines match filter'}
-          </div>
-        )}
-        <div className={wrapLines ? undefined : 'w-max min-w-full'}>
-          {filteredLines.map((line, i) => (
-            <LogLine key={i} line={line} lineNumber={i + 1} wrapLines={wrapLines} />
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-})
-
-function LogLine({ line, lineNumber, wrapLines }: { line: string; lineNumber: number; wrapLines: boolean }) {
-  const upper = line.toUpperCase()
-  const isError = upper.includes('ERROR') || upper.includes('FATAL') || upper.includes('PANIC')
-  const isWarn = upper.includes('WARN')
-  const colorClass = isError ? 'text-red-400' : isWarn ? 'text-yellow-400' : 'text-slate-700 dark:text-slate-300'
-
-  return (
-    <div className="flex hover:bg-slate-50 dark:hover:bg-slate-800/50 group">
-      <span className="shrink-0 w-10 text-right pr-2 text-slate-400 dark:text-slate-600 select-none leading-5 group-hover:text-slate-500">
-        {lineNumber}
-      </span>
-      <span className={`leading-5 ${wrapLines ? 'flex-1 whitespace-pre-wrap break-all' : 'whitespace-pre'} ${colorClass}`}>
-        {line}
-      </span>
-    </div>
-  )
-}

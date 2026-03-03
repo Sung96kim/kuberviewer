@@ -6,6 +6,8 @@ import { useNodeMetrics } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
 import { parseCpuToCores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor, getAllocatableBarColor } from '#/lib/resource-units'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { QueryError } from '#/components/QueryError'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 import type { NodeMetricItem } from '#/api'
@@ -210,13 +212,13 @@ function NodesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('All')
 
   const queryClient = useQueryClient()
-  const { data, isLoading, isError, error } = useResourceList({
+  const { data, isLoading, isError, error, isFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'nodes',
     namespaced: false,
   })
-  const { data: metricsData } = useNodeMetrics()
+  const { data: metricsData, isFetching: metricsFetching } = useNodeMetrics()
 
   const listData = data as KubeListResponse | undefined
   const nodes: KubeNode[] = (listData?.items ?? []) as KubeNode[]
@@ -271,6 +273,7 @@ function NodesPage() {
             Manage and monitor the worker machines in your Kubernetes cluster.
           </p>
         </div>
+        <PollingSettings />
       </div>
 
       {isError && (
@@ -299,7 +302,8 @@ function NodesPage() {
           ))}
         </select>
         {!isLoading && (
-          <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto">
+          <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto flex items-center gap-1.5">
+            <RefetchIndicator fetching={isFetching || metricsFetching} />
             {filteredNodes.length} node{filteredNodes.length !== 1 ? 's' : ''}
           </span>
         )}

@@ -6,6 +6,8 @@ import { useNodeMetricsByName } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
 import { parseCpuToCores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor, getAllocatableBarColor } from '#/lib/resource-units'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 import { ResourceYAMLEditor } from '#/components/resources/ResourceYAMLEditor'
 
@@ -52,6 +54,7 @@ type KubePod = {
   }
   status: {
     phase: string
+    containerStatuses?: Array<{ state?: { waiting?: { reason?: string }; terminated?: { reason?: string } } }>
   }
 }
 
@@ -178,14 +181,14 @@ function NodeDetailPage() {
     resourceName: name,
   })
 
-  const { data: podsData, isLoading: podsLoading } = useResourceList({
+  const { data: podsData, isLoading: podsLoading, isFetching: podsFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'pods',
     namespaced: true,
     fieldSelector: `spec.nodeName=${name}`,
   })
-  const { data: metricsData } = useNodeMetricsByName(name)
+  const { data: metricsData, isFetching: metricsFetching } = useNodeMetricsByName(name)
 
   const node = nodeData as KubeNode | undefined
   const podsList = podsData as KubeListResponse | undefined
@@ -277,6 +280,7 @@ function NodeDetailPage() {
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-2xl font-bold">{node.metadata.name}</h1>
           <StatusBadge status={status} />
+          <div className="ml-auto"><PollingSettings /></div>
         </div>
         <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
           <span className="flex items-center gap-1.5">
@@ -318,6 +322,7 @@ function NodeDetailPage() {
                 <h3 className="text-base font-bold flex items-center gap-2">
                   <span className="material-symbols-outlined text-[20px] text-primary">bar_chart</span>
                   {hasMetrics ? 'Resource Usage' : 'Allocated Resources'}
+                  <RefetchIndicator fetching={metricsFetching} />
                 </h3>
               </div>
               <div className="p-6 space-y-5">
@@ -332,6 +337,7 @@ function NodeDetailPage() {
                 <h3 className="text-base font-bold flex items-center gap-2">
                   <span className="material-symbols-outlined text-[20px] text-primary">deployed_code</span>
                   Scheduled Pods
+                  <RefetchIndicator fetching={podsFetching} />
                 </h3>
                 {!podsLoading && (
                   <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -367,14 +373,25 @@ function NodeDetailPage() {
                       </tr>
                     ) : (
                       pods.slice(0, 20).map((pod) => {
-                        const phase = pod.status?.phase ?? 'Unknown'
-                        const phaseColor: Record<string, string> = {
+                        let displayStatus = pod.status?.phase ?? 'Unknown'
+                        for (const cs of pod.status?.containerStatuses ?? []) {
+                          const waitReason = cs.state?.waiting?.reason
+                          const termReason = cs.state?.terminated?.reason
+                          if (waitReason) { displayStatus = waitReason; break }
+                          if (termReason) { displayStatus = termReason; break }
+                        }
+                        const statusColor: Record<string, string> = {
                           Running: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
                           Succeeded: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
                           Pending: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
                           Failed: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          CrashLoopBackOff: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          ImagePullBackOff: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          ErrImagePull: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          OOMKilled: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          CreateContainerConfigError: 'bg-red-500/10 text-red-400 border-red-500/20',
                         }
-                        const phaseClasses = phaseColor[phase] ?? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                        const statusClasses = statusColor[displayStatus] ?? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
 
                         return (
                           <tr key={`${pod.metadata.namespace}/${pod.metadata.name}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
@@ -389,9 +406,9 @@ function NodeDetailPage() {
                             </td>
                             <td className="px-6 py-3 text-slate-500 dark:text-slate-400">{pod.metadata.namespace}</td>
                             <td className="px-6 py-3">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${phaseClasses}`}>
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusClasses}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                                {phase}
+                                {displayStatus}
                               </span>
                             </td>
                             <td className="px-6 py-3 text-slate-500 dark:text-slate-400">{relativeTime(pod.metadata.creationTimestamp)}</td>

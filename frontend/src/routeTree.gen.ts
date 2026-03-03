@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as NodesRouteImport } from './routes/nodes'
 import { Route as NamespacesRouteImport } from './routes/namespaces'
+import { Route as MetricsRouteImport } from './routes/metrics'
+import { Route as LogsRouteImport } from './routes/logs'
 import { Route as EventsRouteImport } from './routes/events'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResourcesSplatRouteImport } from './routes/resources.$'
@@ -31,6 +33,16 @@ const NodesRoute = NodesRouteImport.update({
 const NamespacesRoute = NamespacesRouteImport.update({
   id: '/namespaces',
   path: '/namespaces',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MetricsRoute = MetricsRouteImport.update({
+  id: '/metrics',
+  path: '/metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsRoute = LogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventsRoute = EventsRouteImport.update({
@@ -62,6 +74,8 @@ const NamespacesNameRoute = NamespacesNameRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/events': typeof EventsRoute
+  '/logs': typeof LogsRoute
+  '/metrics': typeof MetricsRoute
   '/namespaces': typeof NamespacesRoute
   '/nodes': typeof NodesRoute
   '/search': typeof SearchRoute
@@ -72,6 +86,8 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/events': typeof EventsRoute
+  '/logs': typeof LogsRoute
+  '/metrics': typeof MetricsRoute
   '/namespaces': typeof NamespacesRoute
   '/nodes': typeof NodesRoute
   '/search': typeof SearchRoute
@@ -83,6 +99,8 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/events': typeof EventsRoute
+  '/logs': typeof LogsRoute
+  '/metrics': typeof MetricsRoute
   '/namespaces': typeof NamespacesRoute
   '/nodes': typeof NodesRoute
   '/search': typeof SearchRoute
@@ -95,6 +113,8 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/events'
+    | '/logs'
+    | '/metrics'
     | '/namespaces'
     | '/nodes'
     | '/search'
@@ -105,6 +125,8 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/events'
+    | '/logs'
+    | '/metrics'
     | '/namespaces'
     | '/nodes'
     | '/search'
@@ -115,6 +137,8 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/events'
+    | '/logs'
+    | '/metrics'
     | '/namespaces'
     | '/nodes'
     | '/search'
@@ -126,6 +150,8 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EventsRoute: typeof EventsRoute
+  LogsRoute: typeof LogsRoute
+  MetricsRoute: typeof MetricsRoute
   NamespacesRoute: typeof NamespacesRoute
   NodesRoute: typeof NodesRoute
   SearchRoute: typeof SearchRoute
@@ -155,6 +181,20 @@ declare module '@tanstack/react-router' {
       path: '/namespaces'
       fullPath: '/namespaces'
       preLoaderRoute: typeof NamespacesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/metrics': {
+      id: '/metrics'
+      path: '/metrics'
+      fullPath: '/metrics'
+      preLoaderRoute: typeof MetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs': {
+      id: '/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof LogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/events': {
@@ -198,6 +238,8 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   EventsRoute: EventsRoute,
+  LogsRoute: LogsRoute,
+  MetricsRoute: MetricsRoute,
   NamespacesRoute: NamespacesRoute,
   NodesRoute: NodesRoute,
   SearchRoute: SearchRoute,

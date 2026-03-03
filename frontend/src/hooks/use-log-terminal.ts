@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useState } from 'react'
+import { useRef, useCallback, useState } from 'react'
 import type { Terminal } from 'xterm'
 
 type LogTerminalParams = {
@@ -12,7 +12,7 @@ type LogTerminalParams = {
 const MAX_RECONNECTS = 5
 const RECONNECT_DELAY = 3000
 
-export function useLogTerminal(params: LogTerminalParams, enabled: boolean) {
+export function useLogTerminal(params: LogTerminalParams) {
   const [connected, setConnected] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const termRef = useRef<Terminal | null>(null)
@@ -75,28 +75,18 @@ export function useLogTerminal(params: LogTerminalParams, enabled: boolean) {
     }
   }, [params.namespace, params.pod, params.container, params.tailLines, params.timestamps, cleanup])
 
-  const attach = useCallback((terminal: Terminal) => {
+  const start = useCallback((terminal: Terminal) => {
     termRef.current = terminal
-  }, [])
-
-  const disconnect = useCallback(() => {
-    cleanup()
-    setConnected(false)
-  }, [cleanup])
-
-  useEffect(() => {
-    if (!enabled || !termRef.current || !params.namespace || !params.pod) {
-      cleanup()
-      setConnected(false)
-      return
-    }
-
     reconnectCountRef.current = 0
     setError(null)
     connect()
+  }, [connect])
 
-    return cleanup
-  }, [enabled, params.namespace, params.pod, params.container, params.tailLines, params.timestamps, connect, cleanup])
+  const disconnect = useCallback(() => {
+    cleanup()
+    termRef.current = null
+    setConnected(false)
+  }, [cleanup])
 
-  return { attach, disconnect, connected, error }
+  return { start, disconnect, connected, error }
 }

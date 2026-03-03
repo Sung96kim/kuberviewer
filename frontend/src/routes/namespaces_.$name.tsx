@@ -6,6 +6,8 @@ import { usePodMetrics } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
 import { parseCpuToMillicores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor } from '#/lib/resource-units'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 
 export const Route = createFileRoute('/namespaces_/$name')({ component: NamespaceDetailPage })
@@ -31,6 +33,7 @@ type KubePod = {
   }
   status: {
     phase: string
+    containerStatuses?: Array<{ state?: { waiting?: { reason?: string } } }>
   }
 }
 
@@ -138,7 +141,7 @@ function StatusBadge({ phase }: { phase: string }) {
   )
 }
 
-function StatCard({ icon, iconColor, iconBg, hoverBorderColor, title, mainValue, subValue, badge, to, namespace }: {
+function StatCard({ icon, iconColor, iconBg, hoverBorderColor, title, mainValue, subValue, badge, to, namespace, isFetching }: {
   icon: string
   iconColor: string
   iconBg: string
@@ -149,6 +152,7 @@ function StatCard({ icon, iconColor, iconBg, hoverBorderColor, title, mainValue,
   badge?: { label: string; color: string }
   to?: string
   namespace?: string
+  isFetching?: boolean
 }) {
   const classes = `block bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-5 ${hoverBorderColor} hover:-translate-y-1 hover:shadow-lg transition-all duration-200 cursor-pointer`
 
@@ -158,11 +162,14 @@ function StatCard({ icon, iconColor, iconBg, hoverBorderColor, title, mainValue,
         <div className={`size-10 rounded-lg ${iconBg} flex items-center justify-center ${iconColor}`}>
           <span className="material-symbols-outlined text-[22px]">{icon}</span>
         </div>
-        {badge && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-            {badge.label}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          <RefetchIndicator fetching={isFetching ?? false} />
+          {badge && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
+              {badge.label}
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold mb-1">{title}</p>
       <p className="text-2xl font-bold">{mainValue}</p>
@@ -267,7 +274,7 @@ function NamespaceDetailPage() {
     resourceName: name,
   })
 
-  const { data: podsData, isLoading: podsLoading } = useResourceList({
+  const { data: podsData, isLoading: podsLoading, isFetching: podsFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'pods',
@@ -275,7 +282,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: deploymentsData, isLoading: deploymentsLoading } = useResourceList({
+  const { data: deploymentsData, isLoading: deploymentsLoading, isFetching: deploymentsFetching } = useResourceList({
     group: 'apps',
     version: 'v1',
     name: 'deployments',
@@ -283,7 +290,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: servicesData, isLoading: servicesLoading } = useResourceList({
+  const { data: servicesData, isLoading: servicesLoading, isFetching: servicesFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'services',
@@ -291,7 +298,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: replicasetsData, isLoading: replicasetsLoading } = useResourceList({
+  const { data: replicasetsData, isLoading: replicasetsLoading, isFetching: replicasetsFetching } = useResourceList({
     group: 'apps',
     version: 'v1',
     name: 'replicasets',
@@ -299,7 +306,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: quotasData, isLoading: quotasLoading } = useResourceList({
+  const { data: quotasData, isLoading: quotasLoading, isFetching: quotasFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'resourcequotas',
@@ -307,7 +314,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: eventsData, isLoading: eventsLoading } = useResourceList({
+  const { data: eventsData, isLoading: eventsLoading, isFetching: eventsFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'events',
@@ -315,7 +322,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: podMetricsData } = usePodMetrics(name)
+  const { data: podMetricsData, isFetching: metricsFetching } = usePodMetrics(name)
 
   const namespace = nsData as KubeNamespace | undefined
   const pods = ((podsData as KubeListResponse<KubePod>)?.items ?? []) as KubePod[]
@@ -326,9 +333,16 @@ function NamespaceDetailPage() {
   const events = ((eventsData as KubeListResponse<KubeEvent>)?.items ?? []) as KubeEvent[]
 
   const runningPods = pods.filter((p) => p.status?.phase === 'Running').length
+  const problemReasons = new Set(['CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull', 'CreateContainerConfigError', 'OOMKilled'])
+  const issuePods = pods.filter((p) =>
+    (p.status?.containerStatuses ?? []).some((cs) => {
+      const reason = cs.state?.waiting?.reason ?? ''
+      return problemReasons.has(reason)
+    })
+  ).length
   const readyDeployments = deployments.filter((d) => (d.status?.readyReplicas ?? 0) >= (d.status?.replicas ?? 0) && (d.status?.replicas ?? 0) > 0).length
   const readyReplicasets = replicasets.filter((r) => (r.status?.readyReplicas ?? 0) >= (r.status?.replicas ?? 0) && (r.status?.replicas ?? 0) > 0).length
-  const allPodsHealthy = pods.length > 0 && runningPods === pods.length
+  const allPodsHealthy = pods.length > 0 && runningPods === pods.length && issuePods === 0
   const allDeploymentsReady = deployments.length > 0 && readyDeployments === deployments.length
 
   const aggregatedCpu = quotas.reduce<{ used: number; hard: number }>((acc, q) => {
@@ -400,6 +414,7 @@ function NamespaceDetailPage() {
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-2xl font-bold">{namespace.metadata.name}</h1>
           <StatusBadge phase={phase} />
+          <div className="ml-auto"><PollingSettings /></div>
         </div>
         <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mb-3">
           <span className="flex items-center gap-1.5">
@@ -429,10 +444,11 @@ function NamespaceDetailPage() {
           hoverBorderColor="hover:border-blue-500/40 hover:shadow-blue-500/10"
           title="Pods"
           mainValue={podsLoading ? '-' : `${runningPods} / ${pods.length}`}
-          subValue={podsLoading ? undefined : `${runningPods} running`}
-          badge={!podsLoading && allPodsHealthy ? { label: 'Healthy', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' } : undefined}
+          subValue={podsLoading ? undefined : issuePods > 0 ? `${issuePods} with issues` : `${runningPods} running`}
+          badge={!podsLoading && allPodsHealthy ? { label: 'Healthy', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' } : !podsLoading && issuePods > 0 ? { label: `${issuePods} Issues`, color: 'bg-red-500/10 text-red-400 border border-red-500/20' } : undefined}
           to="v1/pods"
           namespace={name}
+          isFetching={podsFetching}
         />
         <StatCard
           icon="rocket_launch"
@@ -445,6 +461,7 @@ function NamespaceDetailPage() {
           badge={!deploymentsLoading && allDeploymentsReady ? { label: 'All Ready', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' } : undefined}
           to="apps/v1/deployments"
           namespace={name}
+          isFetching={deploymentsFetching}
         />
         <StatCard
           icon="dns"
@@ -456,6 +473,7 @@ function NamespaceDetailPage() {
           subValue={servicesLoading ? undefined : 'Active'}
           to="v1/services"
           namespace={name}
+          isFetching={servicesFetching}
         />
         <StatCard
           icon="content_copy"
@@ -467,6 +485,7 @@ function NamespaceDetailPage() {
           subValue={replicasetsLoading ? undefined : `${readyReplicasets} ready`}
           to="apps/v1/replicasets"
           namespace={name}
+          isFetching={replicasetsFetching}
         />
       </div>
 
@@ -476,6 +495,7 @@ function NamespaceDetailPage() {
             <h3 className="text-base font-bold flex items-center gap-2">
               <span className="material-symbols-outlined text-[20px] text-primary">monitoring</span>
               Actual Usage
+              <RefetchIndicator fetching={metricsFetching} />
             </h3>
           </div>
           <div className="p-6">
@@ -506,6 +526,7 @@ function NamespaceDetailPage() {
           <h3 className="text-base font-bold flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-primary">bar_chart</span>
             Resource Quotas
+            <RefetchIndicator fetching={quotasFetching} />
           </h3>
         </div>
         <div className="p-6">
@@ -549,6 +570,7 @@ function NamespaceDetailPage() {
           <h3 className="text-base font-bold flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-primary">event_note</span>
             Recent Events
+            <RefetchIndicator fetching={eventsFetching} />
           </h3>
           <div className="flex items-center gap-3">
             <select

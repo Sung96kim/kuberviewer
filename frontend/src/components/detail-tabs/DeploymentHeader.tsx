@@ -1,4 +1,4 @@
-import { memo, useMemo, useCallback, useState } from 'react'
+import { memo, useMemo, useCallback, useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '#/api'
 import { usePodMetrics } from '#/hooks/use-metrics'
@@ -57,21 +57,36 @@ export const DeploymentHeader = memo(function DeploymentHeader({
   const availableReplicas = status?.availableReplicas ?? 0
 
   const [replicaCount, setReplicaCount] = useState(desiredReplicas)
+  const [scaleError, setScaleError] = useState<string | null>(null)
+  const userScaledRef = useRef(false)
+
+  useEffect(() => {
+    if (!userScaledRef.current) {
+      setReplicaCount(desiredReplicas)
+    }
+  }, [desiredReplicas])
 
   const scaleMutation = useMutation({
     mutationFn: async (replicas: number) => {
-      return api.patchResource({
+      return api.scaleResource({
         group,
         version,
         name: resourceType,
         namespaced,
         namespace,
         resourceName: metadata?.name,
-        body: { spec: { replicas } },
+        replicas,
       })
     },
     onSuccess: () => {
+      setScaleError(null)
+      userScaledRef.current = false
       queryClient.invalidateQueries({ queryKey: ['resource'] })
+    },
+    onError: (err) => {
+      setScaleError(err instanceof Error ? err.message : 'Failed to scale')
+      setReplicaCount(desiredReplicas)
+      userScaledRef.current = false
     },
   })
 
@@ -105,6 +120,8 @@ export const DeploymentHeader = memo(function DeploymentHeader({
   const handleScale = useCallback((delta: number) => {
     const next = Math.max(0, replicaCount + delta)
     setReplicaCount(next)
+    setScaleError(null)
+    userScaledRef.current = true
     scaleMutation.mutate(next)
   }, [replicaCount, scaleMutation])
 
@@ -238,6 +255,16 @@ export const DeploymentHeader = memo(function DeploymentHeader({
           </button>
         </div>
       </div>
+
+      {scaleError && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <span className="material-symbols-outlined text-red-400 text-[16px]">error</span>
+          <span className="text-xs text-red-400">{scaleError}</span>
+          <button onClick={() => setScaleError(null)} className="ml-auto text-red-400 hover:text-red-300">
+            <span className="material-symbols-outlined text-[14px]">close</span>
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-4">
