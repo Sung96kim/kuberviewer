@@ -165,9 +165,6 @@ class KubeManager:
             raw = yaml.safe_load(f)
         self._raw_config = raw
         self._contexts = raw.get("contexts", [])
-        current = raw.get("current-context", "")
-        if current:
-            self._current_context = current
 
     def get_current_context(self) -> str:
         return self._current_context

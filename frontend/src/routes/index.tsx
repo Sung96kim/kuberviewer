@@ -14,7 +14,6 @@ import { parseCpuToCores, parseMemoryToBytes, formatMemory } from '#/lib/resourc
 import { relativeTime } from '#/lib/time'
 import { Skeleton } from '#/components/ui/skeleton'
 import { RefetchIndicator } from '#/components/ui/refetch-indicator'
-import { PollingSettings } from '#/components/ui/polling-settings'
 import type { NodeMetricItem, PrometheusQueryResponse } from '#/api'
 
 export const Route = createFileRoute('/')({ component: ClusterOverview })
@@ -884,7 +883,6 @@ function ClusterOverview() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <PollingSettings />
           <button
             onClick={handleRefresh}
             className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-surface-hover text-sm font-medium transition-colors"
