@@ -17,7 +17,7 @@ services:
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
-      - ${KUBECONFIG:-${HOME}/.kube/config}:/root/.kube/config:ro
+      - ${KUBECONFIG:-${HOME}/.kube/config}:/root/.kube/config
       - ${HOME}/.kube/cache:/root/.kube/cache
     environment:
       - KUBERVIEWER_LOG_LEVEL=info

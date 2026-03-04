@@ -28,3 +28,14 @@ export function useDeleteContext() {
     },
   })
 }
+
+export function useBulkDeleteContexts() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ names, switchTo }: { names: string[]; switchTo?: string }) =>
+      api.bulkDeleteContexts(names, switchTo),
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+    },
+  })
+}
