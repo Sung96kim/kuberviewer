@@ -1,7 +1,10 @@
 import asyncio
+import json
 import logging
 from collections.abc import AsyncGenerator
 from concurrent.futures import ThreadPoolExecutor
+
+from kubernetes.client.exceptions import ApiException
 
 from app.kube.manager import KubeManager
 
@@ -49,7 +52,16 @@ async def stream_pod_logs(
         )
         return resp[0]
 
-    response = await asyncio.to_thread(_open_stream)
+    try:
+        response = await asyncio.to_thread(_open_stream)
+    except ApiException as e:
+        try:
+            body = json.loads(e.body) if e.body else {}
+            message = body.get("message", e.reason or "Unknown error")
+        except (json.JSONDecodeError, TypeError):
+            message = e.reason or str(e)
+        yield f"event: error\ndata: {message}\n\n"
+        return
     loop = asyncio.get_event_loop()
 
     def _readline():

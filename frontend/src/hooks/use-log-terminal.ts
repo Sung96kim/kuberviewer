@@ -60,6 +60,17 @@ export function useLogTerminal(params: LogTerminalParams) {
       terminal.write(event.data + '\r\n')
     }
 
+    es.addEventListener('error', ((event: MessageEvent) => {
+      if (event.data) {
+        setError(event.data)
+        terminal.write(`\x1b[31m[Error] ${event.data}\x1b[0m\r\n`)
+        es.close()
+        esRef.current = null
+        setConnected(false)
+        return
+      }
+    }) as EventListener)
+
     es.onerror = () => {
       es.close()
       esRef.current = null

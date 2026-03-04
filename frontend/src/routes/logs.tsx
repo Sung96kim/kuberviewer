@@ -12,6 +12,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { LogPanel, type LogPanelHandle } from '#/components/logs/LogPanel'
 import { LogPodSearchDialog } from '#/components/logs/LogPodSearchDialog'
+import { useContexts } from '#/hooks/use-contexts'
 
 export const Route = createFileRoute('/logs')({
   component: LogsPage,
@@ -36,16 +37,20 @@ type LogGroupsState = {
   groups: LogGroup[]
 }
 
-const GROUPS_STORAGE_KEY = 'kuberviewer:log-groups'
+const GROUPS_STORAGE_PREFIX = 'kuberviewer:log-groups'
 const LEGACY_STORAGE_KEY = 'kuberviewer:log-panels'
+
+function storageKey(context: string) {
+  return context ? `${GROUPS_STORAGE_PREFIX}:${context}` : GROUPS_STORAGE_PREFIX
+}
 
 function createDefaultGroup(panels: LogPanelState[] = []): LogGroup {
   return { id: crypto.randomUUID(), name: 'Group 1', panels }
 }
 
-function loadGroups(): LogGroupsState {
+function loadGroups(context: string): LogGroupsState {
   try {
-    const raw = sessionStorage.getItem(GROUPS_STORAGE_KEY)
+    const raw = sessionStorage.getItem(storageKey(context))
     if (raw) {
       const state = JSON.parse(raw) as LogGroupsState
       if (state.groups.length > 0) return state
@@ -62,8 +67,8 @@ function loadGroups(): LogGroupsState {
   return { activeGroupId: group.id, groups: [group] }
 }
 
-function saveGroups(state: LogGroupsState) {
-  sessionStorage.setItem(GROUPS_STORAGE_KEY, JSON.stringify(state))
+function saveGroups(context: string, state: LogGroupsState) {
+  sessionStorage.setItem(storageKey(context), JSON.stringify(state))
 }
 
 function getColsPerRow(count: number): number {
@@ -440,7 +445,7 @@ function GroupTab({ group, active, index, isOnly, editing, onSelect, onStartRena
         ) : (
           <>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">{index + 1}</span>
-            <span className="truncate max-w-[120px]">{group.name}</span>
+            <span className="truncate w-[100px]">{group.name}</span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">({group.panels.length})</span>
           </>
         )}
@@ -476,7 +481,9 @@ function GroupTab({ group, active, index, isOnly, editing, onSelect, onStartRena
 }
 
 function LogsPage() {
-  const [groupsState, setGroupsState] = useState<LogGroupsState>(loadGroups)
+  const { data: ctxData } = useContexts()
+  const currentContext = ctxData?.current ?? ''
+  const [groupsState, setGroupsState] = useState<LogGroupsState>(() => loadGroups(currentContext))
   const [searchOpen, setSearchOpen] = useState(false)
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [activeId, setActiveId] = useState<string | null>(null)
@@ -488,8 +495,12 @@ function LogsPage() {
   const panels = activeGroup.panels
 
   useEffect(() => {
-    saveGroups(groupsState)
-  }, [groupsState])
+    setGroupsState(loadGroups(currentContext))
+  }, [currentContext])
+
+  useEffect(() => {
+    saveGroups(currentContext, groupsState)
+  }, [groupsState, currentContext])
 
   useEffect(() => {
     if (panels.length > 0 && !panels.some(p => p.id === activeId)) {
