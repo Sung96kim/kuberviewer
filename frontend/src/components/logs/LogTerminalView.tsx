@@ -94,6 +94,11 @@ export const LogTerminalView = memo(function LogTerminalView({
 
     terminal.attachCustomKeyEventHandler((e) => {
       if (e.type !== 'keydown') return true
+      if (e.ctrlKey && e.key === 'c' && terminal.hasSelection()) {
+        navigator.clipboard.writeText(terminal.getSelection())
+        terminal.clearSelection()
+        return false
+      }
       if (e.key === 'Home') { terminal.scrollToTop(); return false }
       if (e.key === 'End') { terminal.scrollToBottom(); return false }
       return true
