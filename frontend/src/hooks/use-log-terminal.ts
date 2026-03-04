@@ -19,6 +19,7 @@ export function useLogTerminal(params: LogTerminalParams) {
   const esRef = useRef<EventSource | null>(null)
   const reconnectCountRef = useRef(0)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastMessageTimeRef = useRef(0)
 
   const cleanup = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -37,6 +38,7 @@ export function useLogTerminal(params: LogTerminalParams) {
 
     cleanup()
 
+    const isReconnect = lastMessageTimeRef.current > 0
     const qs = new URLSearchParams({
       namespace: params.namespace,
       pod: params.pod,
@@ -44,7 +46,12 @@ export function useLogTerminal(params: LogTerminalParams) {
       timestamps: String(params.timestamps ?? false),
     })
     if (params.container) qs.set('container', params.container)
-    if (params.tailLines !== undefined) qs.set('tailLines', String(params.tailLines))
+    if (isReconnect) {
+      const secondsAgo = Math.ceil((Date.now() - lastMessageTimeRef.current) / 1000) + 1
+      qs.set('sinceSeconds', String(secondsAgo))
+    } else if (params.tailLines !== undefined) {
+      qs.set('tailLines', String(params.tailLines))
+    }
 
     const es = new EventSource(`/api/logs?${qs}`)
     esRef.current = es
@@ -53,10 +60,13 @@ export function useLogTerminal(params: LogTerminalParams) {
       reconnectCountRef.current = 0
       setConnected(true)
       setError(null)
-      terminal.write('\x1b[2m[Connected]\x1b[0m\r\n')
+      if (!isReconnect) {
+        terminal.write('\x1b[2m[Connected]\x1b[0m\r\n')
+      }
     }
 
     es.onmessage = (event) => {
+      lastMessageTimeRef.current = Date.now()
       terminal.write(event.data + '\r\n')
     }
 
@@ -89,6 +99,7 @@ export function useLogTerminal(params: LogTerminalParams) {
   const start = useCallback((terminal: Terminal) => {
     termRef.current = terminal
     reconnectCountRef.current = 0
+    lastMessageTimeRef.current = 0
     setError(null)
     connect()
   }, [connect])

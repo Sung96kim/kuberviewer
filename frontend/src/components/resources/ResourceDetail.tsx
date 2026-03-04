@@ -14,6 +14,7 @@ import { ServiceHeader } from '#/components/detail-tabs/ServiceHeader'
 import { ServiceEndpointsTab } from '#/components/detail-tabs/ServiceEndpointsTab'
 import { CronJobScheduleTab } from '#/components/detail-tabs/CronJobScheduleTab'
 import { CronJobHeader } from '#/components/detail-tabs/CronJobHeader'
+import { CronJobPodsTab } from '#/components/detail-tabs/CronJobPodsTab'
 import { SecretDataTab } from '#/components/detail-tabs/SecretDataTab'
 import { useTerminal } from '#/components/terminal/TerminalProvider'
 import { PodContainersSection } from '#/components/detail-tabs/PodContainersSection'
@@ -443,7 +444,10 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
       result.push({ id: 'pods' as TabId, label: 'Pods' })
     }
     if (isService) result.push({ id: 'endpoints' as TabId, label: 'Endpoints' })
-    if (isCronJob) result.push({ id: 'schedule' as TabId, label: 'Schedule' })
+    if (isCronJob) {
+      result.push({ id: 'schedule' as TabId, label: 'Schedule' })
+      result.push({ id: 'pods' as TabId, label: 'Pods' })
+    }
 
     if (hasSpecialSection) {
       result.push({ id: 'metadata', label: 'Metadata' })
@@ -710,6 +714,13 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
           namespace={namespace}
           cronJobName={metadata?.name ?? name}
           resource={resource as Record<string, unknown>}
+        />
+      )}
+
+      {activeTab === 'pods' && isCronJob && namespace && (
+        <CronJobPodsTab
+          namespace={namespace}
+          cronJobName={metadata?.name ?? name}
         />
       )}
 

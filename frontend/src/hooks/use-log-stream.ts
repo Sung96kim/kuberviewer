@@ -32,6 +32,7 @@ export function useLogStream(params: LogStreamParams, enabled: boolean) {
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hadDataRef = useRef(false)
   const lastIdentityRef = useRef('')
+  const lastMessageTimeRef = useRef(0)
 
   const clear = useCallback(() => {
     setState((prev) => ({ lines: [], connected: prev.connected, error: null }))
@@ -49,6 +50,7 @@ export function useLogStream(params: LogStreamParams, enabled: boolean) {
       lastIdentityRef.current = identity
       setState({ lines: [], connected: false, error: null })
       hadDataRef.current = false
+      lastMessageTimeRef.current = 0
     }
   }, [identity])
 
@@ -74,6 +76,7 @@ export function useLogStream(params: LogStreamParams, enabled: boolean) {
     reconnectCountRef.current = 0
 
     function connect() {
+      const isReconnect = lastMessageTimeRef.current > 0
       const qs = new URLSearchParams({
         namespace: params.namespace,
         pod: params.pod,
@@ -82,8 +85,13 @@ export function useLogStream(params: LogStreamParams, enabled: boolean) {
         previous: String(params.previous ?? false),
       })
       if (params.container) qs.set('container', params.container)
-      if (params.tailLines !== undefined) qs.set('tailLines', String(params.tailLines))
-      if (params.sinceSeconds !== undefined) qs.set('sinceSeconds', String(params.sinceSeconds))
+      if (isReconnect) {
+        const secondsAgo = Math.ceil((Date.now() - lastMessageTimeRef.current) / 1000) + 1
+        qs.set('sinceSeconds', String(secondsAgo))
+      } else {
+        if (params.tailLines !== undefined) qs.set('tailLines', String(params.tailLines))
+        if (params.sinceSeconds !== undefined) qs.set('sinceSeconds', String(params.sinceSeconds))
+      }
 
       const es = new EventSource(`/api/logs?${qs}`)
       eventSourceRef.current = es
@@ -95,6 +103,7 @@ export function useLogStream(params: LogStreamParams, enabled: boolean) {
 
       es.onmessage = (event) => {
         hadDataRef.current = true
+        lastMessageTimeRef.current = Date.now()
         setState((prev) => {
           const newLines = [...prev.lines, event.data]
           if (newLines.length > MAX_LINES) {
