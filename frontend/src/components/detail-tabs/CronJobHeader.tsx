@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Link } from '@tanstack/react-router'
 import { relativeTime } from '#/lib/time'
 
 type CronJobSpec = {
@@ -187,6 +188,27 @@ export const CronJobHeader = memo(function CronJobHeader({
                 <span className="w-1.5 h-1.5 rounded-full bg-current" />
                 {isSuspended ? 'Suspended' : 'Active'}
               </span>
+            </div>
+            <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {metadata?.namespace && (
+                <>
+                  <Link
+                    to="/namespaces/$name"
+                    params={{ name: metadata.namespace }}
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">folder_open</span>
+                    Namespace: <span className="text-primary font-medium">{metadata.namespace}</span>
+                  </Link>
+                  <span className="text-slate-500 dark:text-slate-600">·</span>
+                </>
+              )}
+              {metadata?.creationTimestamp && (
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">schedule</span>
+                  Age: {relativeTime(metadata.creationTimestamp)}
+                </span>
+              )}
             </div>
           </div>
         </div>

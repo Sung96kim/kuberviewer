@@ -1,4 +1,5 @@
 import { memo, useMemo, useCallback, useState, useEffect, useRef } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '#/api'
 import { usePodMetrics } from '#/hooks/use-metrics'
@@ -199,15 +200,22 @@ export const DeploymentHeader = memo(function DeploymentHeader({
               <span className="text-slate-500 dark:text-slate-600">·</span>
               {metadata?.namespace && (
                 <>
-                  <span className="flex items-center gap-1">
+                  <Link
+                    to="/namespaces/$name"
+                    params={{ name: metadata.namespace }}
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                  >
                     <span className="material-symbols-outlined text-[14px]">folder_open</span>
-                    Namespace: {metadata.namespace}
-                  </span>
+                    Namespace: <span className="text-primary font-medium">{metadata.namespace}</span>
+                  </Link>
                   <span className="text-slate-500 dark:text-slate-600">·</span>
                 </>
               )}
               {metadata?.creationTimestamp && (
-                <span>Age: {relativeTime(metadata.creationTimestamp)}</span>
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">schedule</span>
+                  Age: {relativeTime(metadata.creationTimestamp)}
+                </span>
               )}
             </div>
           </div>

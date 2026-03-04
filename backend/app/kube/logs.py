@@ -63,6 +63,8 @@ async def stream_pod_logs(
             line = raw.decode("utf-8", errors="replace").rstrip("\n\r")
             if line:
                 yield f"data: {line}\n\n"
+    except (OSError, ConnectionError):
+        logger.debug("Log stream closed for %s/%s", namespace, pod_name)
     except Exception:
         logger.exception("Log stream error for %s/%s", namespace, pod_name)
     finally:

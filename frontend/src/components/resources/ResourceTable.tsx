@@ -11,6 +11,7 @@ import {
 } from '@tanstack/react-table'
 import type { ColumnDef, SortingState, ExpandedState, Row } from '@tanstack/react-table'
 import { Skeleton } from '#/components/ui/skeleton'
+import { TruncatedCell } from '#/components/ui/truncated-cell'
 import { getStatusClasses } from '#/lib/resource-helpers'
 import { useSettings } from '#/hooks/use-settings'
 
@@ -308,19 +309,21 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                       const isAge = cell.column.id === 'age'
 
                       return (
-                        <td key={cell.id} className={`${cellCls} ${isSubRow && isName ? 'pl-12' : ''}`}>
+                        <td key={cell.id} className={`${cellCls} ${isSubRow && isName ? 'pl-12' : ''} max-w-[300px]`}>
                           {isStatus ? (
                             <StatusBadge value={cell.getValue() as string} />
                           ) : isName ? (
-                            <span className="font-medium text-primary hover:text-primary/80">
+                            <TruncatedCell className="font-medium text-primary hover:text-primary/80">
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </span>
+                            </TruncatedCell>
                           ) : isAge ? (
                             <span className="font-mono text-sm">
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </span>
                           ) : (
-                            flexRender(cell.column.columnDef.cell, cell.getContext())
+                            <TruncatedCell>
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </TruncatedCell>
                           )}
                         </td>
                       )

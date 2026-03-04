@@ -401,7 +401,7 @@ function ResourceDetailPage({ group, version, resourceName, namespace, name }: R
   const breadcrumbs = useMemo(() => [
     { label: 'Cluster', href: '/' },
     { label: kind, href: `/resources/${listSplat}` },
-    ...(namespace ? [{ label: namespace }] : []),
+    ...(namespace ? [{ label: namespace, href: `/namespaces/${namespace}` }] : []),
     { label: name },
   ], [kind, listSplat, namespace, name])
 

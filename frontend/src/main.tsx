@@ -6,6 +6,7 @@ import { getRouter, getQueryClient } from './router'
 import { PollingProvider } from './hooks/use-polling'
 import { SettingsProvider } from './hooks/use-settings'
 import { ThemeProvider } from './hooks/use-theme'
+import { TooltipProvider } from './components/ui/tooltip'
 import 'xterm/css/xterm.css'
 import './styles.css'
 
@@ -18,7 +19,9 @@ createRoot(document.getElementById('root')!).render(
       <SettingsProvider>
         <PollingProvider>
           <QueryClientProvider client={queryClient}>
-            <RouterProvider router={router} />
+            <TooltipProvider>
+              <RouterProvider router={router} />
+            </TooltipProvider>
           </QueryClientProvider>
         </PollingProvider>
       </SettingsProvider>

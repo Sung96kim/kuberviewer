@@ -4,6 +4,7 @@ import { useResourceList } from '#/hooks/use-resource-list'
 import { useResource } from '#/hooks/use-resource'
 import { LogTerminalView } from '#/components/logs/LogTerminalView'
 import { getStatusClasses } from '#/lib/resource-helpers'
+import { TruncatedCell } from '#/components/ui/truncated-cell'
 import { relativeTime } from '#/lib/time'
 
 type DeploymentPodsTabProps = {
@@ -28,6 +29,11 @@ function getPodPhase(item: KubeItem): string {
 function getPodRestarts(item: KubeItem): number {
   const status = item.status as { containerStatuses?: Array<{ restartCount?: number }> } | undefined
   return (status?.containerStatuses ?? []).reduce((sum, cs) => sum + (cs.restartCount ?? 0), 0)
+}
+
+function getPodImages(item: KubeItem): string[] {
+  const spec = item.spec as { containers?: Array<{ image?: string }> } | undefined
+  return (spec?.containers ?? []).map(c => c.image ?? '').filter(Boolean)
 }
 
 function getContainerNames(resource: Record<string, unknown>): string[] {
@@ -79,6 +85,7 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
           <thead>
             <tr className="border-b border-border-light dark:border-border-dark">
               <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Name</th>
+              <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Image</th>
               <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Status</th>
               <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Restarts</th>
               <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Age</th>
@@ -91,6 +98,7 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
               const spec = item.spec as { nodeName?: string } | undefined
               const phase = getPodPhase(item)
               const restarts = getPodRestarts(item)
+              const images = getPodImages(item)
               const classes = getStatusClasses(phase)
               const isSelected = meta?.name === selectedPod
 
@@ -104,15 +112,22 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
                       : 'hover:bg-slate-50 dark:hover:bg-surface-hover/30'
                   }`}
                 >
-                  <td className="px-5 py-3">
-                    <Link
-                      to="/resources/$"
-                      params={{ _splat: `v1/pods/${namespace}/${meta?.name}` }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="font-medium text-blue-400 hover:text-blue-300 hover:underline transition-colors"
-                    >
-                      {meta?.name}
-                    </Link>
+                  <td className="px-5 py-3 max-w-[250px]">
+                    <TruncatedCell>
+                      <Link
+                        to="/resources/$"
+                        params={{ _splat: `v1/pods/${namespace}/${meta?.name}` }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-medium text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                      >
+                        {meta?.name}
+                      </Link>
+                    </TruncatedCell>
+                  </td>
+                  <td className="px-5 py-3 font-mono text-xs text-slate-600 dark:text-slate-400 max-w-[300px]">
+                    {images.map((img, i) => (
+                      <TruncatedCell key={i}>{img}</TruncatedCell>
+                    ))}
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
@@ -124,7 +139,9 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
                   <td className="px-5 py-3 font-mono text-xs">
                     {meta?.creationTimestamp ? relativeTime(meta.creationTimestamp) : '-'}
                   </td>
-                  <td className="px-5 py-3">{spec?.nodeName ?? '-'}</td>
+                  <td className="px-5 py-3 max-w-[250px]">
+                    <TruncatedCell>{spec?.nodeName ?? '-'}</TruncatedCell>
+                  </td>
                 </tr>
               )
             })}
