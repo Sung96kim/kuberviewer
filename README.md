@@ -16,14 +16,18 @@ Browser → Nginx (TLS, static assets, reverse proxy)
 
 ## Features
 
-- Multi-cluster context switching via kubeconfig
+- Multi-cluster context switching with bulk delete
 - OIDC authentication (via kubelogin)
 - Resource browsing with auto-discovered API groups (Workloads, Networking, Storage, Config, CRDs)
-- YAML editor with apply/patch operations
-- Pod log streaming (follow, previous, timestamps)
-- Interactive pod terminal (WebSocket-based xterm.js)
+- YAML editor with apply/patch/scale operations
+- Resource creation from templates with saved definitions (localStorage)
+- Pod log streaming (follow, search, timestamps, multi-container)
+- Interactive pod terminal with Ctrl+C/V copy-paste (WebSocket-based xterm.js)
 - Real-time resource watching (Server-Sent Events)
-- Global resource search
+- Configurable polling speeds (Fast 1s, Normal 5s, Slow 30s, Paused, Custom)
+- Node and pod metrics (via metrics-server)
+- Prometheus integration (range/instant queries)
+- Global resource search (Cmd+K)
 - Cluster health overview (node/pod status)
 - Dark mode
 
@@ -123,7 +127,9 @@ kuberviewer/
 │   │   │   ├── resources.py     # Generic K8s CRUD via raw API
 │   │   │   ├── exec.py          # Pod exec (WebSocket)
 │   │   │   ├── logs.py          # Pod log streaming (SSE)
-│   │   │   └── watch.py         # Resource watch (SSE)
+│   │   │   ├── watch.py         # Resource watch (SSE)
+│   │   │   ├── metrics.py       # Node/pod metrics (metrics-server)
+│   │   │   └── prometheus.py    # Prometheus queries
 │   │   └── routers/             # FastAPI route handlers
 │   ├── pyproject.toml
 │   └── uv.lock
@@ -136,9 +142,10 @@ kuberviewer/
 │   │   │   ├── resources/       # ResourceTable, ResourceDetail, YAML editor
 │   │   │   ├── detail-tabs/     # Resource-specific detail views
 │   │   │   ├── terminal/        # Pod terminal (xterm.js)
+│   │   │   ├── logs/            # Log streaming with search
 │   │   │   └── ui/              # shadcn/ui base components
-│   │   ├── hooks/               # React Query hooks
-│   │   └── lib/                 # Utilities (resource helpers, time)
+│   │   ├── hooks/               # React Query hooks, polling, exec, logs
+│   │   └── lib/                 # Utilities, resource templates, saved definitions
 │   ├── package.json
 │   └── vite.config.ts
 ├── Dockerfile.frontend          # Multi-stage: Node build → Nginx
@@ -151,22 +158,7 @@ kuberviewer/
 
 ## API endpoints
 
-| Method | Path                        | Description                   |
-|--------|-----------------------------|-------------------------------|
-| GET    | `/api/contexts`             | List kubeconfig contexts      |
-| POST   | `/api/contexts/switch`      | Switch active context         |
-| GET    | `/api/cluster/health`       | Node/pod health summary       |
-| GET    | `/api/resources/discover`   | Discover all API resources    |
-| GET    | `/api/resources/list`       | List resources (with filters) |
-| GET    | `/api/resources/get`        | Get single resource           |
-| DELETE | `/api/resources/delete`     | Delete resource               |
-| POST   | `/api/resources/apply`      | Create/update resource        |
-| POST   | `/api/resources/patch`      | Patch resource                |
-| GET    | `/api/logs`                 | Stream pod logs (SSE)         |
-| WS     | `/api/exec`                 | Pod terminal (WebSocket)      |
-| GET    | `/api/watch`                | Watch resource changes (SSE)  |
-| GET    | `/api/auth/status`          | OIDC auth status              |
-| GET    | `/api/auth/login`           | Initiate OIDC login           |
+Interactive Swagger docs are available at [localhost:8000/docs](http://localhost:8000/docs) when the backend is running.
 
 ## License
 
