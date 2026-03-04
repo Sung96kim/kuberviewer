@@ -23,7 +23,7 @@ jobs:
       - run: uv run python -m pytest
 
   frontend:
-    name: Frontend Build
+    name: Frontend Tests & Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,4 +37,5 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
       - run: npx tsc --noEmit
+      - run: npm test
       - run: npm run build
