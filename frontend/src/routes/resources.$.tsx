@@ -63,7 +63,7 @@ function ResourceSplatPage() {
 
   if (!parsed) {
     return (
-      <div className="max-w-7xl mx-auto flex items-center justify-center py-20">
+      <div className="max-w-[1600px] mx-auto flex items-center justify-center py-20">
         <div className="text-center">
           <span className="material-symbols-outlined text-5xl text-slate-500 dark:text-slate-600 mb-4 block">
             error
@@ -281,7 +281,7 @@ function ResourceListView({ group, version, resourceName, filterNamespace }: Res
   }, [kind, resourceName, filterNamespace])
 
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
+    <div className="max-w-[1600px] mx-auto space-y-6">
       <Breadcrumb items={breadcrumbs} />
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -406,7 +406,7 @@ function ResourceDetailPage({ group, version, resourceName, namespace, name }: R
   ], [kind, listSplat, namespace, name])
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-[1600px] mx-auto">
       <Breadcrumb items={breadcrumbs} />
       <ResourceDetail
         group={group}
