@@ -173,8 +173,8 @@ function MetricsChart({
                 fontSize: '12px',
                 color: '#e2e8f0',
               }}
-              labelFormatter={formatTimestamp}
-              formatter={(value: number) => [formatValue(value), '']}
+              labelFormatter={(label) => formatTimestamp(label as number)}
+              formatter={(value) => [formatValue(value as number), '']}
             />
             {series.length <= 8 && (
               <Legend
