@@ -170,7 +170,7 @@ export function SettingsPopover() {
             type="text"
             value={settings.defaultNamespace}
             onChange={e => updateSetting('defaultNamespace', e.target.value)}
-            placeholder="All"
+            placeholder="default"
             className="text-xs px-2 py-1 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark outline-none w-24 text-right"
           />
         </SettingRow>

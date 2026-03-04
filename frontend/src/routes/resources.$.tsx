@@ -206,8 +206,8 @@ function ResourceListView({ group, version, resourceName, filterNamespace }: Res
   const effectiveNamespaces = useMemo(() => {
     if (!isPod) return null
     if (selectedNamespaces) return selectedNamespaces
-    const defaultNs = settings.defaultNamespace
-    if (defaultNs && allNamespaces.includes(defaultNs)) return new Set([defaultNs])
+    const defaultNs = settings.defaultNamespace || 'default'
+    if (allNamespaces.includes(defaultNs)) return new Set([defaultNs])
     if (allNamespaces.length > 0) return new Set([allNamespaces[0]])
     return new Set<string>()
   }, [isPod, selectedNamespaces, allNamespaces, settings.defaultNamespace])

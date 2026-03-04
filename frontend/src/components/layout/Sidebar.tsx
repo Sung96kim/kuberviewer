@@ -53,7 +53,7 @@ export const Sidebar = memo(function Sidebar() {
   const [clusterOpen, setClusterOpen] = useState(true)
 
   useEffect(() => {
-    if (settings.sidebarAutoCollapse) setCollapsed(true)
+    setCollapsed(settings.sidebarAutoCollapse)
   }, [settings.sidebarAutoCollapse])
   const groups: ResourceGroup[] = useMemo(() => apiData?.groups ?? [], [apiData])
 
