@@ -1,9 +1,13 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useResource } from '#/hooks/use-resource'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { usePodMetrics } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
+import { parseCpuToMillicores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor } from '#/lib/resource-units'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 
 export const Route = createFileRoute('/namespaces_/$name')({ component: NamespaceDetailPage })
@@ -29,6 +33,7 @@ type KubePod = {
   }
   status: {
     phase: string
+    containerStatuses?: Array<{ state?: { waiting?: { reason?: string } } }>
   }
 }
 
@@ -94,52 +99,8 @@ type KubeListResponse<T> = {
 
 type EventFilter = 'All' | 'Warning' | 'Normal'
 
-function parseCpuValue(value: string): number {
-  if (value.endsWith('m')) {
-    return parseInt(value, 10) / 1000
-  }
-  if (value.endsWith('n')) {
-    return parseInt(value, 10) / 1_000_000_000
-  }
-  return parseFloat(value)
-}
-
-function parseMemoryBytes(value: string): number {
-  const units: Record<string, number> = {
-    Ki: 1024,
-    Mi: 1024 ** 2,
-    Gi: 1024 ** 3,
-    Ti: 1024 ** 4,
-    K: 1000,
-    M: 1000 ** 2,
-    G: 1000 ** 3,
-    T: 1000 ** 4,
-  }
-  for (const [suffix, multiplier] of Object.entries(units)) {
-    if (value.endsWith(suffix)) {
-      return parseFloat(value.replace(suffix, '')) * multiplier
-    }
-  }
-  return parseFloat(value)
-}
-
-function formatCpuDisplay(cores: number): string {
-  if (cores < 1) return `${Math.round(cores * 1000)}m`
-  return `${cores.toFixed(1)} cores`
-}
-
-function formatMemoryDisplay(bytes: number): string {
-  const gi = bytes / (1024 ** 3)
-  if (gi >= 1) return `${gi.toFixed(1)} GiB`
-  const mi = bytes / (1024 ** 2)
-  if (mi >= 1) return `${mi.toFixed(0)} MiB`
-  return `${(bytes / 1024).toFixed(0)} KiB`
-}
-
-function getBarColor(percentage: number): { bar: string; bg: string; text: string } {
-  if (percentage <= 50) return { bar: 'bg-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-500' }
-  if (percentage <= 80) return { bar: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-500' }
-  return { bar: 'bg-red-500', bg: 'bg-red-500/10', text: 'text-red-500' }
+function formatCpuCores(cores: number): string {
+  return formatCpu(cores * 1000)
 }
 
 function getResourceLinkPath(kind: string, name: string, namespace?: string): string {
@@ -180,7 +141,7 @@ function StatusBadge({ phase }: { phase: string }) {
   )
 }
 
-function StatCard({ icon, iconColor, iconBg, hoverBorderColor, title, mainValue, subValue, badge, to, namespace }: {
+function StatCard({ icon, iconColor, iconBg, hoverBorderColor, title, mainValue, subValue, badge, to, namespace, isFetching }: {
   icon: string
   iconColor: string
   iconBg: string
@@ -191,6 +152,7 @@ function StatCard({ icon, iconColor, iconBg, hoverBorderColor, title, mainValue,
   badge?: { label: string; color: string }
   to?: string
   namespace?: string
+  isFetching?: boolean
 }) {
   const classes = `block bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark rounded-xl p-5 ${hoverBorderColor} hover:-translate-y-1 hover:shadow-lg transition-all duration-200 cursor-pointer`
 
@@ -200,11 +162,14 @@ function StatCard({ icon, iconColor, iconBg, hoverBorderColor, title, mainValue,
         <div className={`size-10 rounded-lg ${iconBg} flex items-center justify-center ${iconColor}`}>
           <span className="material-symbols-outlined text-[22px]">{icon}</span>
         </div>
-        {badge && (
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
-            {badge.label}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5">
+          <RefetchIndicator fetching={isFetching ?? false} />
+          {badge && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badge.color}`}>
+              {badge.label}
+            </span>
+          )}
+        </div>
       </div>
       <p className="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider font-semibold mb-1">{title}</p>
       <p className="text-2xl font-bold">{mainValue}</p>
@@ -237,7 +202,7 @@ function QuotaProgressBar({ label, icon, usedValue: used, limitValue: limit, for
   formatFn: (value: number) => string
 }) {
   const percentage = limit > 0 ? Math.round((used / limit) * 100) : 0
-  const color = getBarColor(percentage)
+  const color = getUsageBarColor(percentage)
 
   return (
     <div className="space-y-2">
@@ -309,7 +274,7 @@ function NamespaceDetailPage() {
     resourceName: name,
   })
 
-  const { data: podsData, isLoading: podsLoading } = useResourceList({
+  const { data: podsData, isLoading: podsLoading, isFetching: podsFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'pods',
@@ -317,7 +282,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: deploymentsData, isLoading: deploymentsLoading } = useResourceList({
+  const { data: deploymentsData, isLoading: deploymentsLoading, isFetching: deploymentsFetching } = useResourceList({
     group: 'apps',
     version: 'v1',
     name: 'deployments',
@@ -325,7 +290,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: servicesData, isLoading: servicesLoading } = useResourceList({
+  const { data: servicesData, isLoading: servicesLoading, isFetching: servicesFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'services',
@@ -333,7 +298,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: replicasetsData, isLoading: replicasetsLoading } = useResourceList({
+  const { data: replicasetsData, isLoading: replicasetsLoading, isFetching: replicasetsFetching } = useResourceList({
     group: 'apps',
     version: 'v1',
     name: 'replicasets',
@@ -341,7 +306,7 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: quotasData, isLoading: quotasLoading } = useResourceList({
+  const { data: quotasData, isLoading: quotasLoading, isFetching: quotasFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'resourcequotas',
@@ -349,13 +314,15 @@ function NamespaceDetailPage() {
     namespace: name,
   })
 
-  const { data: eventsData, isLoading: eventsLoading } = useResourceList({
+  const { data: eventsData, isLoading: eventsLoading, isFetching: eventsFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'events',
     namespaced: true,
     namespace: name,
   })
+
+  const { data: podMetricsData, isFetching: metricsFetching } = usePodMetrics(name)
 
   const namespace = nsData as KubeNamespace | undefined
   const pods = ((podsData as KubeListResponse<KubePod>)?.items ?? []) as KubePod[]
@@ -366,28 +333,48 @@ function NamespaceDetailPage() {
   const events = ((eventsData as KubeListResponse<KubeEvent>)?.items ?? []) as KubeEvent[]
 
   const runningPods = pods.filter((p) => p.status?.phase === 'Running').length
+  const problemReasons = new Set(['CrashLoopBackOff', 'ImagePullBackOff', 'ErrImagePull', 'CreateContainerConfigError', 'OOMKilled'])
+  const issuePods = pods.filter((p) =>
+    (p.status?.containerStatuses ?? []).some((cs) => {
+      const reason = cs.state?.waiting?.reason ?? ''
+      return problemReasons.has(reason)
+    })
+  ).length
   const readyDeployments = deployments.filter((d) => (d.status?.readyReplicas ?? 0) >= (d.status?.replicas ?? 0) && (d.status?.replicas ?? 0) > 0).length
   const readyReplicasets = replicasets.filter((r) => (r.status?.readyReplicas ?? 0) >= (r.status?.replicas ?? 0) && (r.status?.replicas ?? 0) > 0).length
-  const allPodsHealthy = pods.length > 0 && runningPods === pods.length
+  const allPodsHealthy = pods.length > 0 && runningPods === pods.length && issuePods === 0
   const allDeploymentsReady = deployments.length > 0 && readyDeployments === deployments.length
 
   const aggregatedCpu = quotas.reduce<{ used: number; hard: number }>((acc, q) => {
     const usedRaw = q.status?.used?.['requests.cpu'] ?? q.status?.used?.['cpu']
     const hardRaw = q.status?.hard?.['requests.cpu'] ?? q.status?.hard?.['cpu']
-    if (usedRaw) acc.used += parseCpuValue(usedRaw)
-    if (hardRaw) acc.hard += parseCpuValue(hardRaw)
+    if (usedRaw) acc.used += parseCpuToMillicores(usedRaw) / 1000
+    if (hardRaw) acc.hard += parseCpuToMillicores(hardRaw) / 1000
     return acc
   }, { used: 0, hard: 0 })
 
   const aggregatedMemory = quotas.reduce<{ used: number; hard: number }>((acc, q) => {
     const usedRaw = q.status?.used?.['requests.memory'] ?? q.status?.used?.['memory']
     const hardRaw = q.status?.hard?.['requests.memory'] ?? q.status?.hard?.['memory']
-    if (usedRaw) acc.used += parseMemoryBytes(usedRaw)
-    if (hardRaw) acc.hard += parseMemoryBytes(hardRaw)
+    if (usedRaw) acc.used += parseMemoryToBytes(usedRaw)
+    if (hardRaw) acc.hard += parseMemoryToBytes(hardRaw)
     return acc
   }, { used: 0, hard: 0 })
 
   const hasQuotas = quotas.length > 0 && (aggregatedCpu.hard > 0 || aggregatedMemory.hard > 0)
+
+  const actualUsage = useMemo(() => {
+    if (!podMetricsData?.available || !podMetricsData.items) return null
+    let cpuMillicores = 0
+    let memBytes = 0
+    for (const pod of podMetricsData.items) {
+      for (const container of pod.containers) {
+        cpuMillicores += parseCpuToMillicores(container.usage.cpu)
+        memBytes += parseMemoryToBytes(container.usage.memory)
+      }
+    }
+    return { cpuMillicores, memBytes }
+  }, [podMetricsData])
 
   const sortedEvents = [...events].sort((a, b) =>
     new Date(b.metadata.creationTimestamp).getTime() - new Date(a.metadata.creationTimestamp).getTime()
@@ -427,6 +414,7 @@ function NamespaceDetailPage() {
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-2xl font-bold">{namespace.metadata.name}</h1>
           <StatusBadge phase={phase} />
+          <div className="ml-auto"><PollingSettings /></div>
         </div>
         <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400 mb-3">
           <span className="flex items-center gap-1.5">
@@ -439,7 +427,7 @@ function NamespaceDetailPage() {
             {labels.map(([k, v]) => (
               <span
                 key={k}
-                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-border-light dark:border-border-dark"
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-surface-highlight text-slate-500 dark:text-slate-400 border border-border-light dark:border-border-dark"
               >
                 {k}={v}
               </span>
@@ -456,10 +444,11 @@ function NamespaceDetailPage() {
           hoverBorderColor="hover:border-blue-500/40 hover:shadow-blue-500/10"
           title="Pods"
           mainValue={podsLoading ? '-' : `${runningPods} / ${pods.length}`}
-          subValue={podsLoading ? undefined : `${runningPods} running`}
-          badge={!podsLoading && allPodsHealthy ? { label: 'Healthy', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' } : undefined}
+          subValue={podsLoading ? undefined : issuePods > 0 ? `${issuePods} with issues` : `${runningPods} running`}
+          badge={!podsLoading && allPodsHealthy ? { label: 'Healthy', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' } : !podsLoading && issuePods > 0 ? { label: `${issuePods} Issues`, color: 'bg-red-500/10 text-red-400 border border-red-500/20' } : undefined}
           to="v1/pods"
           namespace={name}
+          isFetching={podsFetching}
         />
         <StatCard
           icon="rocket_launch"
@@ -472,6 +461,7 @@ function NamespaceDetailPage() {
           badge={!deploymentsLoading && allDeploymentsReady ? { label: 'All Ready', color: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' } : undefined}
           to="apps/v1/deployments"
           namespace={name}
+          isFetching={deploymentsFetching}
         />
         <StatCard
           icon="dns"
@@ -483,6 +473,7 @@ function NamespaceDetailPage() {
           subValue={servicesLoading ? undefined : 'Active'}
           to="v1/services"
           namespace={name}
+          isFetching={servicesFetching}
         />
         <StatCard
           icon="content_copy"
@@ -494,14 +485,48 @@ function NamespaceDetailPage() {
           subValue={replicasetsLoading ? undefined : `${readyReplicasets} ready`}
           to="apps/v1/replicasets"
           namespace={name}
+          isFetching={replicasetsFetching}
         />
       </div>
+
+      {actualUsage && (
+        <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
+          <div className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+            <h3 className="text-base font-bold flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px] text-primary">monitoring</span>
+              Actual Usage
+              <RefetchIndicator fetching={metricsFetching} />
+            </h3>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="material-symbols-outlined text-[18px] text-blue-400">memory</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-medium">CPU Usage</span>
+                </div>
+                <p className="text-2xl font-bold">{formatCpu(actualUsage.cpuMillicores)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">across {podMetricsData?.items?.length ?? 0} pods</p>
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="material-symbols-outlined text-[18px] text-purple-400">storage</span>
+                  <span className="text-slate-700 dark:text-slate-200 font-medium">Memory Usage</span>
+                </div>
+                <p className="text-2xl font-bold">{formatMemory(actualUsage.memBytes)}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400">across {podMetricsData?.items?.length ?? 0} pods</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark overflow-hidden">
         <div className="px-6 py-4 border-b border-border-light dark:border-border-dark">
           <h3 className="text-base font-bold flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-primary">bar_chart</span>
             Resource Quotas
+            <RefetchIndicator fetching={quotasFetching} />
           </h3>
         </div>
         <div className="p-6">
@@ -518,7 +543,7 @@ function NamespaceDetailPage() {
                   icon="memory"
                   usedValue={aggregatedCpu.used}
                   limitValue={aggregatedCpu.hard}
-                  formatFn={formatCpuDisplay}
+                  formatFn={formatCpuCores}
                 />
               )}
               {aggregatedMemory.hard > 0 && (
@@ -527,7 +552,7 @@ function NamespaceDetailPage() {
                   icon="storage"
                   usedValue={aggregatedMemory.used}
                   limitValue={aggregatedMemory.hard}
-                  formatFn={formatMemoryDisplay}
+                  formatFn={formatMemory}
                 />
               )}
             </div>
@@ -545,12 +570,13 @@ function NamespaceDetailPage() {
           <h3 className="text-base font-bold flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px] text-primary">event_note</span>
             Recent Events
+            <RefetchIndicator fetching={eventsFetching} />
           </h3>
           <div className="flex items-center gap-3">
             <select
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value as EventFilter)}
-              className="px-3 py-1.5 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-xs font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+              className="px-3 py-1.5 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-xs font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
             >
               <option value="All">All Types</option>
               <option value="Warning">Warning</option>
@@ -566,7 +592,7 @@ function NamespaceDetailPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+            <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
               <tr>
                 <th className="px-6 py-3">Type</th>
                 <th className="px-6 py-3">Reason</th>
@@ -600,7 +626,7 @@ function NamespaceDetailPage() {
                   const linkPath = getResourceLinkPath(objectKind, objectName, objectNamespace)
 
                   return (
-                    <tr key={event.metadata.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <tr key={event.metadata.name} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                       <td className="px-6 py-3">
                         <EventTypeBadge type={event.type} />
                       </td>

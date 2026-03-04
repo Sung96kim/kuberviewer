@@ -1,9 +1,11 @@
 import { useState, useMemo, useCallback } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useResourceList } from '#/hooks/use-resource-list'
 import { relativeTime } from '#/lib/time'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { QueryError } from '#/components/QueryError'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 
@@ -48,7 +50,7 @@ function TypeBadge({ type }: { type: string }) {
     )
   }
   return (
-    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700">
+    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 dark:bg-surface-highlight text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-border-dark">
       <span className="material-symbols-outlined text-[14px]">info</span>
       Normal
     </span>
@@ -64,6 +66,7 @@ function EventRowSkeleton() {
       <td className="px-6 py-4"><Skeleton className="h-4 w-64" /></td>
       <td className="px-6 py-4"><Skeleton className="h-4 w-8" /></td>
       <td className="px-6 py-4"><Skeleton className="h-4 w-12" /></td>
+      <td className="px-6 py-4"><Skeleton className="h-6 w-6 rounded" /></td>
     </tr>
   )
 }
@@ -81,7 +84,7 @@ function PaginationButton({
 }) {
   const baseClasses = 'px-3 py-1.5 text-sm font-medium rounded-lg border transition-colors'
   const activeClasses = 'bg-primary/10 text-primary border-primary'
-  const defaultClasses = 'bg-white dark:bg-surface-dark border-border-light dark:border-border-dark text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800'
+  const defaultClasses = 'bg-white dark:bg-surface-dark border-border-light dark:border-border-dark text-slate-500 hover:bg-slate-50 dark:hover:bg-surface-hover'
   const disabledClasses = 'opacity-50 cursor-not-allowed'
 
   return (
@@ -122,6 +125,34 @@ function getVisiblePageNumbers(currentPage: number, totalPages: number): (number
   return pages
 }
 
+function getResourceLinkPath(kind: string, name: string, namespace?: string): string {
+  const kindMap: Record<string, { group: string; version: string; resource: string }> = {
+    Pod: { group: '', version: 'v1', resource: 'pods' },
+    Deployment: { group: 'apps', version: 'v1', resource: 'deployments' },
+    ReplicaSet: { group: 'apps', version: 'v1', resource: 'replicasets' },
+    Service: { group: '', version: 'v1', resource: 'services' },
+    ConfigMap: { group: '', version: 'v1', resource: 'configmaps' },
+    Secret: { group: '', version: 'v1', resource: 'secrets' },
+    StatefulSet: { group: 'apps', version: 'v1', resource: 'statefulsets' },
+    DaemonSet: { group: 'apps', version: 'v1', resource: 'daemonsets' },
+    Job: { group: 'batch', version: 'v1', resource: 'jobs' },
+    CronJob: { group: 'batch', version: 'v1', resource: 'cronjobs' },
+    Node: { group: '', version: 'v1', resource: 'nodes' },
+    Namespace: { group: '', version: 'v1', resource: 'namespaces' },
+    PersistentVolumeClaim: { group: '', version: 'v1', resource: 'persistentvolumeclaims' },
+    Ingress: { group: 'networking.k8s.io', version: 'v1', resource: 'ingresses' },
+    HorizontalPodAutoscaler: { group: 'autoscaling', version: 'v2', resource: 'horizontalpodautoscalers' },
+  }
+
+  const mapping = kindMap[kind]
+  if (!mapping) return ''
+
+  const groupVersion = mapping.group ? `${mapping.group}/${mapping.version}` : mapping.version
+  return namespace
+    ? `${groupVersion}/${mapping.resource}/${namespace}/${name}`
+    : `${groupVersion}/${mapping.resource}/${name}`
+}
+
 function EventsPage() {
   const [typeFilter, setTypeFilter] = useState<string>('All')
   const [namespaceFilter, setNamespaceFilter] = useState<string>('All')
@@ -129,9 +160,10 @@ function EventsPage() {
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [currentPage, setCurrentPage] = useState<number>(1)
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE)
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   const queryClient = useQueryClient()
-  const { data, isLoading, isError, error } = useResourceList({
+  const { data, isLoading, isError, error, isFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'events',
@@ -208,6 +240,15 @@ function EventsPage() {
     queryClient.invalidateQueries({ queryKey: ['resources', '', 'v1', 'events'] })
   }, [queryClient])
 
+  const toggleRow = useCallback((name: string) => {
+    setExpandedRows(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }, [])
+
   const handleExport = useCallback(() => {
     const blob = new Blob([JSON.stringify(filteredEvents, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
@@ -229,8 +270,8 @@ function EventsPage() {
 
   const visiblePages = getVisiblePageNumbers(safePage, totalPages)
 
-  const selectClasses = 'px-3 py-2 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none'
-  const iconButtonClasses = 'inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors'
+  const selectClasses = 'px-3 py-2 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none'
+  const iconButtonClasses = 'inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-highlight hover:bg-slate-100 dark:hover:bg-surface-hover transition-colors'
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-6">
@@ -239,6 +280,7 @@ function EventsPage() {
         <div>
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold tracking-tight font-display">Cluster Events</h1>
+            <RefetchIndicator fetching={isFetching} />
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -252,6 +294,7 @@ function EventsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <PollingSettings />
           <button onClick={handleRefresh} className={iconButtonClasses}>
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Refresh
@@ -304,7 +347,7 @@ function EventsPage() {
             placeholder="Search messages or reasons..."
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            className="pl-9 pr-3 py-2 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none w-64"
+            className="pl-9 pr-3 py-2 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none w-64"
           />
         </div>
         {!isLoading && (
@@ -326,7 +369,7 @@ function EventsPage() {
       {!isError && <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold sticky top-0 z-10">
+            <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold sticky top-0 z-10">
               <tr>
                 <th className="px-6 py-4 w-28">Type</th>
                 <th className="px-6 py-4 w-40">Reason</th>
@@ -334,6 +377,7 @@ function EventsPage() {
                 <th className="px-6 py-4">Message</th>
                 <th className="px-6 py-4 w-20 text-center">Count</th>
                 <th className="px-6 py-4 w-28 text-right">Last Seen</th>
+                <th className="px-6 py-4 w-16"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border-light dark:divide-border-dark">
@@ -341,7 +385,7 @@ function EventsPage() {
                 Array.from({ length: 8 }).map((_, i) => <EventRowSkeleton key={i} />)
               ) : paginatedEvents.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center">
+                  <td colSpan={7} className="px-6 py-12 text-center">
                     <span className="material-symbols-outlined text-4xl text-slate-500 dark:text-slate-600 mb-2 block">event_note</span>
                     <p className="text-slate-500 dark:text-slate-400 text-sm">No events found</p>
                   </td>
@@ -349,9 +393,17 @@ function EventsPage() {
               ) : (
                 paginatedEvents.map((event) => {
                   const lastSeen = event.lastTimestamp ?? event.metadata.creationTimestamp
+                  const firstSeen = event.firstTimestamp ?? event.metadata.creationTimestamp
+                  const objectNs = event.involvedObject.namespace ?? event.metadata.namespace
+                  const linkPath = getResourceLinkPath(event.involvedObject.kind, event.involvedObject.name, objectNs)
+                  const isExpanded = expandedRows.has(event.metadata.name)
 
                   return (
-                    <tr key={event.metadata.name} className="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <tr
+                      key={event.metadata.name}
+                      className="group hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors cursor-pointer"
+                      onClick={() => toggleRow(event.metadata.name)}
+                    >
                       <td className="px-6 py-4 align-top">
                         <TypeBadge type={event.type} />
                       </td>
@@ -360,22 +412,81 @@ function EventsPage() {
                       </td>
                       <td className="px-6 py-4 align-top">
                         <div className="flex flex-col gap-0.5">
-                          <span className="text-sm font-medium text-primary">
-                            {event.involvedObject.kind.toLowerCase()}/{event.involvedObject.name}
-                          </span>
+                          {linkPath ? (
+                            <Link
+                              to="/resources/$"
+                              params={{ _splat: linkPath }}
+                              className="text-sm font-medium text-primary hover:underline"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {event.involvedObject.kind.toLowerCase()}/{event.involvedObject.name}
+                            </Link>
+                          ) : (
+                            <span className="text-sm font-medium text-primary">
+                              {event.involvedObject.kind.toLowerCase()}/{event.involvedObject.name}
+                            </span>
+                          )}
                           <span className="text-xs text-slate-500 dark:text-slate-400">
-                            namespace: {event.involvedObject.namespace ?? event.metadata.namespace}
+                            namespace: {objectNs}
                           </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 align-top text-slate-600 dark:text-slate-400 leading-relaxed">
-                        {event.message}
+                      <td className="px-6 py-4 align-top text-slate-600 dark:text-slate-400 leading-relaxed" colSpan={isExpanded ? 1 : undefined}>
+                        {isExpanded ? (
+                          <div className="space-y-3">
+                            <p className="whitespace-pre-wrap wrap-break-word">{event.message}</p>
+                            <div className="grid grid-cols-2 gap-x-6 gap-y-1.5 pt-2 border-t border-border-light dark:border-border-dark text-xs">
+                              <div className="flex justify-between">
+                                <span className="text-slate-500 dark:text-slate-400">First seen</span>
+                                <span className="font-mono text-slate-700 dark:text-slate-300">{relativeTime(firstSeen)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-500 dark:text-slate-400">Last seen</span>
+                                <span className="font-mono text-slate-700 dark:text-slate-300">{relativeTime(lastSeen)}</span>
+                              </div>
+                              <div className="flex justify-between">
+                                <span className="text-slate-500 dark:text-slate-400">Count</span>
+                                <span className="font-medium text-slate-700 dark:text-slate-300">{event.count ?? 1}</span>
+                              </div>
+                              {event.source?.component && (
+                                <div className="flex justify-between">
+                                  <span className="text-slate-500 dark:text-slate-400">Source</span>
+                                  <span className="font-mono text-slate-700 dark:text-slate-300">{event.source.component}</span>
+                                </div>
+                              )}
+                              <div className="flex justify-between">
+                                <span className="text-slate-500 dark:text-slate-400">Event</span>
+                                <span className="font-mono text-slate-700 dark:text-slate-300 truncate max-w-[200px]" title={event.metadata.name}>{event.metadata.name}</span>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="line-clamp-1">{event.message}</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 align-top font-medium text-center">
                         {event.count ?? 1}
                       </td>
                       <td className="px-6 py-4 align-top text-slate-500 dark:text-slate-400 text-right font-mono text-xs">
                         {relativeTime(lastSeen)}
+                      </td>
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex items-center gap-1">
+                          {linkPath && (
+                            <Link
+                              to="/resources/$"
+                              params={{ _splat: linkPath }}
+                              className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-400 hover:text-primary transition-colors opacity-0 group-hover:opacity-100"
+                              title="Inspect resource"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <span className="material-symbols-outlined text-[18px]">open_in_new</span>
+                            </Link>
+                          )}
+                          <span className={`material-symbols-outlined text-[18px] text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}>
+                            expand_more
+                          </span>
+                        </div>
                       </td>
                     </tr>
                   )
@@ -386,7 +497,7 @@ function EventsPage() {
         </div>
 
         {!isLoading && filteredEvents.length > 0 && (
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-border-light dark:border-border-dark bg-slate-50 dark:bg-slate-800/30">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-6 py-4 border-t border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-highlight/30">
             <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400">
               <span>
                 Showing {startIndex + 1}-{endIndex} of {filteredEvents.length} events
@@ -394,7 +505,7 @@ function EventsPage() {
               <select
                 value={pageSize}
                 onChange={(e) => handlePageSizeChange(Number(e.target.value))}
-                className="px-2 py-1 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+                className="px-2 py-1 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none"
               >
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>{size} per page</option>

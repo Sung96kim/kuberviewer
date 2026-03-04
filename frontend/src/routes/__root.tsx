@@ -5,6 +5,7 @@ import { Sidebar } from '#/components/layout/Sidebar'
 import { TerminalProvider } from '#/components/terminal/TerminalProvider'
 import { TerminalDrawer } from '#/components/terminal/TerminalDrawer'
 import { TerminalFab } from '#/components/terminal/TerminalFab'
+import { useSettings } from '#/hooks/use-settings'
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   component: RootComponent,
@@ -12,13 +13,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 })
 
 function RootComponent() {
+  const { settings } = useSettings()
+  const compact = settings.compactMode
+
   return (
     <TerminalProvider>
       <div className="flex h-screen flex-col">
         <Header />
         <div className="flex flex-1 overflow-hidden">
           <Sidebar />
-          <main className="flex-1 overflow-auto p-6 md:p-8">
+          <main className={`flex-1 overflow-auto ${compact ? 'p-4 md:p-5' : 'p-6 md:p-8'}`}>
             <Outlet />
           </main>
         </div>

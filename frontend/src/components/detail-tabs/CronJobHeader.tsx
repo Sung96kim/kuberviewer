@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Link } from '@tanstack/react-router'
 import { relativeTime } from '#/lib/time'
 
 type CronJobSpec = {
@@ -188,13 +189,34 @@ export const CronJobHeader = memo(function CronJobHeader({
                 {isSuspended ? 'Suspended' : 'Active'}
               </span>
             </div>
+            <div className="flex items-center gap-3 text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+              {metadata?.namespace && (
+                <>
+                  <Link
+                    to="/namespaces/$name"
+                    params={{ name: metadata.namespace }}
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">folder_open</span>
+                    Namespace: <span className="text-primary font-medium">{metadata.namespace}</span>
+                  </Link>
+                  <span className="text-slate-500 dark:text-slate-600">·</span>
+                </>
+              )}
+              {metadata?.creationTimestamp && (
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">schedule</span>
+                  Age: {relativeTime(metadata.creationTimestamp)}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={onEditYAML}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-surface-hover transition-colors text-sm font-medium"
           >
             <span className="material-symbols-outlined text-[16px]">description</span>
             Edit YAML
@@ -222,7 +244,7 @@ export const CronJobHeader = memo(function CronJobHeader({
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex items-center gap-1">
                   {cronParts.slice(0, 5).map((part, i) => (
-                    <span key={i} className="inline-flex items-center justify-center min-w-[28px] h-8 px-1.5 rounded bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark text-sm font-mono font-bold">
+                    <span key={i} className="inline-flex items-center justify-center min-w-[28px] h-8 px-1.5 rounded bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark text-sm font-mono font-bold">
                       {part}
                     </span>
                   ))}

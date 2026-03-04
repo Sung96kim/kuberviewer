@@ -1,10 +1,13 @@
 import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { Link } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useResource } from '#/hooks/use-resource'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { useNodeMetricsByName } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
+import { parseCpuToCores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor, getAllocatableBarColor } from '#/lib/resource-units'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
 import { ResourceYAMLEditor } from '#/components/resources/ResourceYAMLEditor'
 
@@ -51,6 +54,7 @@ type KubePod = {
   }
   status: {
     phase: string
+    containerStatuses?: Array<{ state?: { waiting?: { reason?: string }; terminated?: { reason?: string } } }>
   }
 }
 
@@ -60,90 +64,17 @@ type KubeListResponse = {
 
 type TabId = 'overview' | 'yaml'
 
-type ResourceValues = {
-  allocatable: number
-  capacity: number
+type ResourceBarData = {
   percentage: number
-  allocatableDisplay: string
-  capacityDisplay: string
-}
-
-function parseCpuValue(value: string): number {
-  if (value.endsWith('m')) {
-    return parseInt(value, 10) / 1000
-  }
-  if (value.endsWith('n')) {
-    return parseInt(value, 10) / 1_000_000_000
-  }
-  return parseFloat(value)
-}
-
-function parseMemoryBytes(value: string): number {
-  const units: Record<string, number> = {
-    Ki: 1024,
-    Mi: 1024 ** 2,
-    Gi: 1024 ** 3,
-    Ti: 1024 ** 4,
-    K: 1000,
-    M: 1000 ** 2,
-    G: 1000 ** 3,
-    T: 1000 ** 4,
-  }
-  for (const [suffix, multiplier] of Object.entries(units)) {
-    if (value.endsWith(suffix)) {
-      return parseFloat(value.replace(suffix, '')) * multiplier
-    }
-  }
-  return parseFloat(value)
-}
-
-function formatMemoryGi(bytes: number): string {
-  const gi = bytes / (1024 ** 3)
-  return gi >= 1 ? `${gi.toFixed(1)} GiB` : `${(bytes / (1024 ** 2)).toFixed(0)} MiB`
-}
-
-function getCpuValues(node: KubeNode): ResourceValues | null {
-  const capacityRaw = node.status?.capacity?.cpu
-  const allocatableRaw = node.status?.allocatable?.cpu
-  if (!capacityRaw || !allocatableRaw) return null
-  const capacity = parseCpuValue(capacityRaw)
-  const allocatable = parseCpuValue(allocatableRaw)
-  const percentage = capacity > 0 ? Math.round((allocatable / capacity) * 100) : 0
-  return {
-    allocatable,
-    capacity,
-    percentage,
-    allocatableDisplay: `${allocatable.toFixed(1)}`,
-    capacityDisplay: `${capacity} Cores`,
-  }
-}
-
-function getMemoryValues(node: KubeNode): ResourceValues | null {
-  const capacityRaw = node.status?.capacity?.memory
-  const allocatableRaw = node.status?.allocatable?.memory
-  if (!capacityRaw || !allocatableRaw) return null
-  const capacity = parseMemoryBytes(capacityRaw)
-  const allocatable = parseMemoryBytes(allocatableRaw)
-  const percentage = capacity > 0 ? Math.round((allocatable / capacity) * 100) : 0
-  return {
-    allocatable,
-    capacity,
-    percentage,
-    allocatableDisplay: formatMemoryGi(allocatable),
-    capacityDisplay: formatMemoryGi(capacity),
-  }
+  usedDisplay: string
+  totalDisplay: string
+  mode: 'usage' | 'allocatable'
 }
 
 function getNodeStatus(node: KubeNode): string {
   const ready = node.status?.conditions?.find((c) => c.type === 'Ready')
   if (!ready) return 'Unknown'
   return ready.status === 'True' ? 'Ready' : 'NotReady'
-}
-
-function getBarColor(percentage: number): { bar: string; bg: string; text: string } {
-  if (percentage >= 80) return { bar: 'bg-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-500' }
-  if (percentage >= 50) return { bar: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-500' }
-  return { bar: 'bg-red-500', bg: 'bg-red-500/10', text: 'text-red-500' }
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -172,7 +103,7 @@ function ConditionBadge({ status }: { status: string }) {
   )
 }
 
-function ResourceProgressBar({ label, icon, values }: { label: string; icon: string; values: ResourceValues | null }) {
+function ResourceProgressBar({ label, icon, values }: { label: string; icon: string; values: ResourceBarData | null }) {
   if (!values) {
     return (
       <div className="space-y-2">
@@ -184,7 +115,7 @@ function ResourceProgressBar({ label, icon, values }: { label: string; icon: str
     )
   }
 
-  const color = getBarColor(values.percentage)
+  const color = values.mode === 'usage' ? getUsageBarColor(values.percentage) : getAllocatableBarColor(values.percentage)
 
   return (
     <div className="space-y-2">
@@ -196,7 +127,7 @@ function ResourceProgressBar({ label, icon, values }: { label: string; icon: str
         <div className="flex items-center gap-2">
           <span className={`font-semibold ${color.text}`}>{values.percentage}%</span>
           <span className="text-slate-500 dark:text-slate-400 text-xs">
-            {values.allocatableDisplay} / {values.capacityDisplay}
+            {values.usedDisplay} / {values.totalDisplay}
           </span>
         </div>
       </div>
@@ -250,13 +181,14 @@ function NodeDetailPage() {
     resourceName: name,
   })
 
-  const { data: podsData, isLoading: podsLoading } = useResourceList({
+  const { data: podsData, isLoading: podsLoading, isFetching: podsFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'pods',
     namespaced: true,
     fieldSelector: `spec.nodeName=${name}`,
   })
+  const { data: metricsData, isFetching: metricsFetching } = useNodeMetricsByName(name)
 
   const node = nodeData as KubeNode | undefined
   const podsList = podsData as KubeListResponse | undefined
@@ -286,22 +218,53 @@ function NodeDetailPage() {
   const nodeInfo = node.status?.nodeInfo
   const addresses = node.status?.addresses ?? []
   const internalIP = addresses.find((a) => a.type === 'InternalIP')?.address ?? '-'
-  const cpuValues = getCpuValues(node)
-  const memoryValues = getMemoryValues(node)
+  const metricsUsage = metricsData?.available ? metricsData.usage : undefined
+  const hasMetrics = !!metricsUsage
+
+  let cpuValues: ResourceBarData | null = null
+  const cpuCapacityRaw = node.status?.capacity?.cpu
+  if (cpuCapacityRaw) {
+    const capacityCores = parseCpuToCores(cpuCapacityRaw)
+    if (metricsUsage) {
+      const usedCores = parseCpuToCores(metricsUsage.cpu)
+      const pct = capacityCores > 0 ? Math.round((usedCores / capacityCores) * 100) : 0
+      cpuValues = { percentage: pct, usedDisplay: formatCpu(usedCores * 1000), totalDisplay: `${capacityCores} Cores`, mode: 'usage' }
+    } else {
+      const allocRaw = node.status?.allocatable?.cpu
+      if (allocRaw) {
+        const allocCores = parseCpuToCores(allocRaw)
+        const pct = capacityCores > 0 ? Math.round((allocCores / capacityCores) * 100) : 0
+        cpuValues = { percentage: pct, usedDisplay: `${allocCores.toFixed(1)}`, totalDisplay: `${capacityCores} Cores`, mode: 'allocatable' }
+      }
+    }
+  }
+
+  let memoryValues: ResourceBarData | null = null
+  const memCapacityRaw = node.status?.capacity?.memory
+  if (memCapacityRaw) {
+    const capacityBytes = parseMemoryToBytes(memCapacityRaw)
+    if (metricsUsage) {
+      const usedBytes = parseMemoryToBytes(metricsUsage.memory)
+      const pct = capacityBytes > 0 ? Math.round((usedBytes / capacityBytes) * 100) : 0
+      memoryValues = { percentage: pct, usedDisplay: formatMemory(usedBytes), totalDisplay: formatMemory(capacityBytes), mode: 'usage' }
+    } else {
+      const allocRaw = node.status?.allocatable?.memory
+      if (allocRaw) {
+        const allocBytes = parseMemoryToBytes(allocRaw)
+        const pct = capacityBytes > 0 ? Math.round((allocBytes / capacityBytes) * 100) : 0
+        memoryValues = { percentage: pct, usedDisplay: formatMemory(allocBytes), totalDisplay: formatMemory(capacityBytes), mode: 'allocatable' }
+      }
+    }
+  }
+
+  let ephemeralValues: ResourceBarData | null = null
   const ephemeralCapacityRaw = node.status?.capacity?.['ephemeral-storage']
   const ephemeralAllocatableRaw = node.status?.allocatable?.['ephemeral-storage']
-  let ephemeralValues: ResourceValues | null = null
   if (ephemeralCapacityRaw && ephemeralAllocatableRaw) {
-    const capacity = parseMemoryBytes(ephemeralCapacityRaw)
-    const allocatable = parseMemoryBytes(ephemeralAllocatableRaw)
+    const capacity = parseMemoryToBytes(ephemeralCapacityRaw)
+    const allocatable = parseMemoryToBytes(ephemeralAllocatableRaw)
     const percentage = capacity > 0 ? Math.round((allocatable / capacity) * 100) : 0
-    ephemeralValues = {
-      allocatable,
-      capacity,
-      percentage,
-      allocatableDisplay: formatMemoryGi(allocatable),
-      capacityDisplay: formatMemoryGi(capacity),
-    }
+    ephemeralValues = { percentage, usedDisplay: formatMemory(allocatable), totalDisplay: formatMemory(capacity), mode: 'allocatable' }
   }
 
   const tabs: Array<{ id: TabId; label: string }> = [
@@ -317,6 +280,7 @@ function NodeDetailPage() {
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-2xl font-bold">{node.metadata.name}</h1>
           <StatusBadge status={status} />
+          <div className="ml-auto"><PollingSettings /></div>
         </div>
         <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
           <span className="flex items-center gap-1.5">
@@ -357,12 +321,13 @@ function NodeDetailPage() {
               <div className="px-6 py-4 border-b border-border-light dark:border-border-dark">
                 <h3 className="text-base font-bold flex items-center gap-2">
                   <span className="material-symbols-outlined text-[20px] text-primary">bar_chart</span>
-                  Allocated Resources
+                  {hasMetrics ? 'Resource Usage' : 'Allocated Resources'}
+                  <RefetchIndicator fetching={metricsFetching} />
                 </h3>
               </div>
               <div className="p-6 space-y-5">
-                <ResourceProgressBar label="CPU Requests" icon="memory" values={cpuValues} />
-                <ResourceProgressBar label="Memory Requests" icon="storage" values={memoryValues} />
+                <ResourceProgressBar label={hasMetrics ? 'CPU Usage' : 'CPU Allocatable'} icon="memory" values={cpuValues} />
+                <ResourceProgressBar label={hasMetrics ? 'Memory Usage' : 'Memory Allocatable'} icon="storage" values={memoryValues} />
                 <ResourceProgressBar label="Ephemeral Storage" icon="hard_drive" values={ephemeralValues} />
               </div>
             </div>
@@ -372,6 +337,7 @@ function NodeDetailPage() {
                 <h3 className="text-base font-bold flex items-center gap-2">
                   <span className="material-symbols-outlined text-[20px] text-primary">deployed_code</span>
                   Scheduled Pods
+                  <RefetchIndicator fetching={podsFetching} />
                 </h3>
                 {!podsLoading && (
                   <span className="text-xs text-slate-500 dark:text-slate-400">
@@ -381,7 +347,7 @@ function NodeDetailPage() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+                  <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
                     <tr>
                       <th className="px-6 py-3">Pod Name</th>
                       <th className="px-6 py-3">Namespace</th>
@@ -407,17 +373,28 @@ function NodeDetailPage() {
                       </tr>
                     ) : (
                       pods.slice(0, 20).map((pod) => {
-                        const phase = pod.status?.phase ?? 'Unknown'
-                        const phaseColor: Record<string, string> = {
+                        let displayStatus = pod.status?.phase ?? 'Unknown'
+                        for (const cs of pod.status?.containerStatuses ?? []) {
+                          const waitReason = cs.state?.waiting?.reason
+                          const termReason = cs.state?.terminated?.reason
+                          if (waitReason) { displayStatus = waitReason; break }
+                          if (termReason) { displayStatus = termReason; break }
+                        }
+                        const statusColor: Record<string, string> = {
                           Running: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
                           Succeeded: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
                           Pending: 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20',
                           Failed: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          CrashLoopBackOff: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          ImagePullBackOff: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          ErrImagePull: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          OOMKilled: 'bg-red-500/10 text-red-400 border-red-500/20',
+                          CreateContainerConfigError: 'bg-red-500/10 text-red-400 border-red-500/20',
                         }
-                        const phaseClasses = phaseColor[phase] ?? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                        const statusClasses = statusColor[displayStatus] ?? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
 
                         return (
-                          <tr key={`${pod.metadata.namespace}/${pod.metadata.name}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                          <tr key={`${pod.metadata.namespace}/${pod.metadata.name}`} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                             <td className="px-6 py-3">
                               <Link
                                 to="/resources/$"
@@ -429,9 +406,9 @@ function NodeDetailPage() {
                             </td>
                             <td className="px-6 py-3 text-slate-500 dark:text-slate-400">{pod.metadata.namespace}</td>
                             <td className="px-6 py-3">
-                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${phaseClasses}`}>
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusClasses}`}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                                {phase}
+                                {displayStatus}
                               </span>
                             </td>
                             <td className="px-6 py-3 text-slate-500 dark:text-slate-400">{relativeTime(pod.metadata.creationTimestamp)}</td>

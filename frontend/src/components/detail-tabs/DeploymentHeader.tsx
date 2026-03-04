@@ -1,7 +1,10 @@
-import { memo, useMemo, useCallback, useState } from 'react'
+import { memo, useMemo, useCallback, useState, useEffect, useRef } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '#/api'
+import { usePodMetrics } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
+import { parseCpuToMillicores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor } from '#/lib/resource-units'
 
 type DeploymentSpec = {
   replicas?: number
@@ -35,18 +38,6 @@ type DeploymentHeaderProps = {
   onEditYAML: () => void
 }
 
-function parseResourceValue(value: string | undefined): { amount: number; unit: string } {
-  if (!value) return { amount: 0, unit: '' }
-  const match = value.match(/^(\d+(?:\.\d+)?)\s*(.*)$/)
-  if (!match) return { amount: 0, unit: '' }
-  return { amount: parseFloat(match[1]), unit: match[2] }
-}
-
-function formatResource(value: string | undefined): string {
-  if (!value) return '-'
-  return value
-}
-
 export const DeploymentHeader = memo(function DeploymentHeader({
   resource,
   group,
@@ -67,21 +58,36 @@ export const DeploymentHeader = memo(function DeploymentHeader({
   const availableReplicas = status?.availableReplicas ?? 0
 
   const [replicaCount, setReplicaCount] = useState(desiredReplicas)
+  const [scaleError, setScaleError] = useState<string | null>(null)
+  const userScaledRef = useRef(false)
+
+  useEffect(() => {
+    if (!userScaledRef.current) {
+      setReplicaCount(desiredReplicas)
+    }
+  }, [desiredReplicas])
 
   const scaleMutation = useMutation({
     mutationFn: async (replicas: number) => {
-      return api.patchResource({
+      return api.scaleResource({
         group,
         version,
         name: resourceType,
         namespaced,
         namespace,
         resourceName: metadata?.name,
-        body: { spec: { replicas } },
+        replicas,
       })
     },
     onSuccess: () => {
+      setScaleError(null)
+      userScaledRef.current = false
       queryClient.invalidateQueries({ queryKey: ['resource'] })
+    },
+    onError: (err) => {
+      setScaleError(err instanceof Error ? err.message : 'Failed to scale')
+      setReplicaCount(desiredReplicas)
+      userScaledRef.current = false
     },
   })
 
@@ -115,38 +121,67 @@ export const DeploymentHeader = memo(function DeploymentHeader({
   const handleScale = useCallback((delta: number) => {
     const next = Math.max(0, replicaCount + delta)
     setReplicaCount(next)
+    setScaleError(null)
+    userScaledRef.current = true
     scaleMutation.mutate(next)
   }, [replicaCount, scaleMutation])
 
+  const { data: podMetricsData } = usePodMetrics(namespace)
+
   const containerResources = useMemo(() => {
     const containers = spec?.template?.spec?.containers ?? []
-    let totalCpuRequest = ''
-    let totalCpuLimit = ''
-    let totalMemRequest = ''
-    let totalMemLimit = ''
+    let cpuLimitMillicores = 0
+    let memLimitBytes = 0
+    let cpuRequestDisplay = ''
+    let cpuLimitDisplay = ''
+    let memRequestDisplay = ''
+    let memLimitDisplay = ''
 
     for (const c of containers) {
-      if (c.resources?.requests?.cpu) totalCpuRequest = c.resources.requests.cpu
-      if (c.resources?.limits?.cpu) totalCpuLimit = c.resources.limits.cpu
-      if (c.resources?.requests?.memory) totalMemRequest = c.resources.requests.memory
-      if (c.resources?.limits?.memory) totalMemLimit = c.resources.limits.memory
+      if (c.resources?.requests?.cpu) cpuRequestDisplay = c.resources.requests.cpu
+      if (c.resources?.limits?.cpu) {
+        cpuLimitDisplay = c.resources.limits.cpu
+        cpuLimitMillicores += parseCpuToMillicores(c.resources.limits.cpu)
+      }
+      if (c.resources?.requests?.memory) memRequestDisplay = c.resources.requests.memory
+      if (c.resources?.limits?.memory) {
+        memLimitDisplay = c.resources.limits.memory
+        memLimitBytes += parseMemoryToBytes(c.resources.limits.memory)
+      }
     }
 
-    return { totalCpuRequest, totalCpuLimit, totalMemRequest, totalMemLimit }
+    return { cpuRequestDisplay, cpuLimitDisplay, memRequestDisplay, memLimitDisplay, cpuLimitMillicores, memLimitBytes }
   }, [spec])
+
+  const actualUsage = useMemo(() => {
+    if (!podMetricsData?.available || !podMetricsData.items || !metadata?.name) return null
+    const deploymentName = metadata.name
+    const matchingPods = podMetricsData.items.filter((p) => p.metadata.name.startsWith(`${deploymentName}-`))
+    if (matchingPods.length === 0) return null
+
+    let cpuMillicores = 0
+    let memBytes = 0
+    for (const pod of matchingPods) {
+      for (const container of pod.containers) {
+        cpuMillicores += parseCpuToMillicores(container.usage.cpu)
+        memBytes += parseMemoryToBytes(container.usage.memory)
+      }
+    }
+    return { cpuMillicores, memBytes }
+  }, [podMetricsData, metadata?.name])
 
   const availabilityPct = desiredReplicas > 0
     ? Math.round((availableReplicas / desiredReplicas) * 100)
     : 0
   const isHealthy = availabilityPct === 100
 
-  const cpuReq = parseResourceValue(containerResources.totalCpuRequest)
-  const cpuLim = parseResourceValue(containerResources.totalCpuLimit)
-  const cpuPct = cpuLim.amount > 0 ? Math.round((cpuReq.amount / cpuLim.amount) * 100) : 0
-
-  const memReq = parseResourceValue(containerResources.totalMemRequest)
-  const memLim = parseResourceValue(containerResources.totalMemLimit)
-  const memPct = memLim.amount > 0 ? Math.round((memReq.amount / memLim.amount) * 100) : 0
+  const hasMetrics = !!actualUsage
+  const cpuPct = hasMetrics && containerResources.cpuLimitMillicores > 0
+    ? Math.round((actualUsage.cpuMillicores / containerResources.cpuLimitMillicores) * 100)
+    : 0
+  const memPct = hasMetrics && containerResources.memLimitBytes > 0
+    ? Math.round((actualUsage.memBytes / containerResources.memLimitBytes) * 100)
+    : 0
 
   return (
     <div className="space-y-4">
@@ -165,15 +200,22 @@ export const DeploymentHeader = memo(function DeploymentHeader({
               <span className="text-slate-500 dark:text-slate-600">·</span>
               {metadata?.namespace && (
                 <>
-                  <span className="flex items-center gap-1">
+                  <Link
+                    to="/namespaces/$name"
+                    params={{ name: metadata.namespace }}
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                  >
                     <span className="material-symbols-outlined text-[14px]">folder_open</span>
-                    Namespace: {metadata.namespace}
-                  </span>
+                    Namespace: <span className="text-primary font-medium">{metadata.namespace}</span>
+                  </Link>
                   <span className="text-slate-500 dark:text-slate-600">·</span>
                 </>
               )}
               {metadata?.creationTimestamp && (
-                <span>Age: {relativeTime(metadata.creationTimestamp)}</span>
+                <span className="flex items-center gap-1">
+                  <span className="material-symbols-outlined text-[14px]">schedule</span>
+                  Age: {relativeTime(metadata.creationTimestamp)}
+                </span>
               )}
             </div>
           </div>
@@ -184,7 +226,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
             <button
               onClick={() => handleScale(-1)}
               disabled={replicaCount <= 0 || scaleMutation.isPending}
-              className="px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none border-r border-border-light dark:border-border-dark"
+              className="px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-surface-hover hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none border-r border-border-light dark:border-border-dark"
             >
               <span className="material-symbols-outlined text-[16px]">remove</span>
             </button>
@@ -195,7 +237,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
             <button
               onClick={() => handleScale(1)}
               disabled={scaleMutation.isPending}
-              className="px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none border-l border-border-light dark:border-border-dark"
+              className="px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-surface-hover hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none border-l border-border-light dark:border-border-dark"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
             </button>
@@ -203,7 +245,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
 
           <button
             onClick={onEditYAML}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-surface-hover transition-colors text-sm font-medium"
           >
             <span className="material-symbols-outlined text-[16px]">description</span>
             Edit YAML
@@ -222,6 +264,16 @@ export const DeploymentHeader = memo(function DeploymentHeader({
         </div>
       </div>
 
+      {scaleError && (
+        <div className="flex items-center gap-2 px-4 py-2 bg-red-500/10 border border-red-500/20 rounded-lg">
+          <span className="material-symbols-outlined text-red-400 text-[16px]">error</span>
+          <span className="text-xs text-red-400">{scaleError}</span>
+          <button onClick={() => setScaleError(null)} className="ml-auto text-red-400 hover:text-red-300">
+            <span className="material-symbols-outlined text-[14px]">close</span>
+          </button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-4">
           <div className="flex items-center justify-between mb-2">
@@ -236,7 +288,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
               {isHealthy ? 'Healthy' : `${readyReplicas}/${desiredReplicas} Ready`}
             </span>
           </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${isHealthy ? 'bg-emerald-400' : 'bg-yellow-400'}`}
               style={{ width: `${availabilityPct}%` }}
@@ -246,18 +298,24 @@ export const DeploymentHeader = memo(function DeploymentHeader({
 
         <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-600 dark:text-slate-500 font-medium">CPU Usage</span>
+            <span className="text-xs text-slate-600 dark:text-slate-500 font-medium">
+              {hasMetrics ? 'CPU Usage' : 'CPU Request / Limit'}
+            </span>
             <span className="material-symbols-outlined text-[18px] text-blue-400">memory</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold">{formatResource(containerResources.totalCpuRequest) || '-'}</span>
-            {containerResources.totalCpuLimit && (
-              <span className="text-sm text-slate-600 dark:text-slate-500">/ {containerResources.totalCpuLimit} Limit</span>
+            <span className="text-2xl font-bold">
+              {hasMetrics ? formatCpu(actualUsage.cpuMillicores) : (containerResources.cpuRequestDisplay || '-')}
+            </span>
+            {containerResources.cpuLimitDisplay && (
+              <span className="text-sm text-slate-600 dark:text-slate-500">
+                / {containerResources.cpuLimitDisplay} Limit
+              </span>
             )}
           </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-blue-500 transition-all"
+              className={`h-full rounded-full transition-all ${hasMetrics ? getUsageBarColor(cpuPct).bar : 'bg-blue-500'}`}
               style={{ width: `${Math.min(100, cpuPct)}%` }}
             />
           </div>
@@ -265,18 +323,24 @@ export const DeploymentHeader = memo(function DeploymentHeader({
 
         <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark p-4">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-600 dark:text-slate-500 font-medium">Memory Usage</span>
+            <span className="text-xs text-slate-600 dark:text-slate-500 font-medium">
+              {hasMetrics ? 'Memory Usage' : 'Memory Request / Limit'}
+            </span>
             <span className="material-symbols-outlined text-[18px] text-purple-400">bar_chart</span>
           </div>
           <div className="flex items-baseline gap-2 mb-2">
-            <span className="text-2xl font-bold">{formatResource(containerResources.totalMemRequest) || '-'}</span>
-            {containerResources.totalMemLimit && (
-              <span className="text-sm text-slate-600 dark:text-slate-500">/ {containerResources.totalMemLimit} Limit</span>
+            <span className="text-2xl font-bold">
+              {hasMetrics ? formatMemory(actualUsage.memBytes) : (containerResources.memRequestDisplay || '-')}
+            </span>
+            {containerResources.memLimitDisplay && (
+              <span className="text-sm text-slate-600 dark:text-slate-500">
+                / {containerResources.memLimitDisplay} Limit
+              </span>
             )}
           </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full bg-purple-500 transition-all"
+              className={`h-full rounded-full transition-all ${hasMetrics ? getUsageBarColor(memPct).bar : 'bg-purple-500'}`}
               style={{ width: `${Math.min(100, memPct)}%` }}
             />
           </div>

@@ -18,9 +18,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
-_pending_states: dict[str, dict[str, str]] = {}
+REDIRECT_URI = "http://localhost:18000"
 
-REDIRECT_URI = "http://localhost:8000/api/auth/callback"
+_pending_states: dict[str, dict[str, str]] = {}
 
 
 @router.get("/status")
@@ -86,7 +86,7 @@ async def callback(
         params["client_id"],
         params["client_secret"],
         code,
-        REDIRECT_URI,
+        redirect_uri=REDIRECT_URI,
     )
     if not result:
         return HTMLResponse("<h1>Token exchange failed</h1>", status_code=500)

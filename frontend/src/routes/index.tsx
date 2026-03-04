@@ -1,8 +1,21 @@
+import type { ReactNode } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  PieChart, Pie, BarChart, Bar, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+} from 'recharts'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { useNodeMetrics } from '#/hooks/use-metrics'
+import { usePrometheusStatus } from '#/hooks/use-prometheus'
+import { usePollingInterval } from '#/hooks/use-polling'
+import { api } from '#/api'
+import { parseCpuToCores, parseMemoryToBytes, formatMemory } from '#/lib/resource-units'
 import { relativeTime } from '#/lib/time'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
+import type { NodeMetricItem, PrometheusQueryResponse } from '#/api'
 
 export const Route = createFileRoute('/')({ component: ClusterOverview })
 
@@ -103,6 +116,28 @@ function getNodeStats(data: KubeListResponse | undefined) {
   return { total, ready }
 }
 
+type ContainerState = { waiting?: { reason?: string }; terminated?: { reason?: string } }
+
+const PROBLEM_REASONS = new Set([
+  'CrashLoopBackOff',
+  'ImagePullBackOff',
+  'ErrImagePull',
+  'CreateContainerConfigError',
+  'OOMKilled',
+])
+
+function getPodIssues(pod: KubeItem): Record<string, number> {
+  const status = pod as { status?: { containerStatuses?: Array<{ state?: ContainerState }> } }
+  const issues: Record<string, number> = {}
+  for (const cs of status.status?.containerStatuses ?? []) {
+    const reason = cs.state?.waiting?.reason ?? cs.state?.terminated?.reason ?? ''
+    if (PROBLEM_REASONS.has(reason)) {
+      issues[reason] = (issues[reason] ?? 0) + 1
+    }
+  }
+  return issues
+}
+
 function getPodStats(data: KubeListResponse | undefined) {
   const items = data?.items ?? []
   const total = items.length
@@ -110,6 +145,7 @@ function getPodStats(data: KubeListResponse | undefined) {
   let pending = 0
   let failed = 0
   let succeeded = 0
+  const issues: Record<string, number> = {}
 
   for (const pod of items) {
     const phase = ((pod as { status?: { phase?: string } }).status?.phase ?? '').toLowerCase()
@@ -117,9 +153,12 @@ function getPodStats(data: KubeListResponse | undefined) {
     else if (phase === 'pending') pending++
     else if (phase === 'failed') failed++
     else if (phase === 'succeeded') succeeded++
+    for (const [reason, count] of Object.entries(getPodIssues(pod))) {
+      issues[reason] = (issues[reason] ?? 0) + count
+    }
   }
 
-  return { total, running, pending, failed, succeeded }
+  return { total, running, pending, failed, succeeded, issues }
 }
 
 function getNodeResourceInfo(data: KubeListResponse | undefined) {
@@ -130,27 +169,23 @@ function getNodeResourceInfo(data: KubeListResponse | undefined) {
   for (const node of items) {
     const capacity = (node as { status?: NodeStatus }).status?.capacity
     if (capacity) {
-      const cpu = capacity.cpu
-      if (cpu) {
-        totalCpuCores += cpu.endsWith('m')
-          ? parseInt(cpu, 10) / 1000
-          : parseInt(cpu, 10)
-      }
-      const memory = capacity.memory
-      if (memory) {
-        totalMemoryBytes += parseMemoryToBytes(memory)
-      }
+      if (capacity.cpu) totalCpuCores += parseCpuToCores(capacity.cpu)
+      if (capacity.memory) totalMemoryBytes += parseMemoryToBytes(capacity.memory)
     }
   }
 
-  return { totalCpuCores, totalMemoryGiB: Math.round(totalMemoryBytes / (1024 * 1024 * 1024)) }
+  return { totalCpuCores, totalMemoryBytes }
 }
 
-function parseMemoryToBytes(mem: string): number {
-  if (mem.endsWith('Ki')) return parseInt(mem, 10) * 1024
-  if (mem.endsWith('Mi')) return parseInt(mem, 10) * 1024 * 1024
-  if (mem.endsWith('Gi')) return parseInt(mem, 10) * 1024 * 1024 * 1024
-  return parseInt(mem, 10)
+function getMetricsUsage(items: NodeMetricItem[] | undefined) {
+  if (!items?.length) return null
+  let cpuCores = 0
+  let memoryBytes = 0
+  for (const node of items) {
+    cpuCores += parseCpuToCores(node.usage.cpu)
+    memoryBytes += parseMemoryToBytes(node.usage.memory)
+  }
+  return { cpuCores, memoryBytes }
 }
 
 function getRecentEvents(data: KubeListResponse | undefined): KubeEvent[] {
@@ -189,7 +224,7 @@ function StatCardError() {
   )
 }
 
-function NodesCard({ data, isLoading, isError }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean }) {
+function NodesCard({ data, isLoading, isError, isFetching }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; isFetching: boolean }) {
   if (isError) return <StatCardError />
   if (isLoading) return <StatCardSkeleton />
 
@@ -202,32 +237,38 @@ function NodesCard({ data, isLoading, isError }: { data: KubeListResponse | unde
         <div className="p-2 rounded-lg bg-blue-500/10 text-blue-500">
           <span className="material-symbols-outlined">dns</span>
         </div>
-        {ready === total && total > 0 ? (
-          <span className="text-xs font-medium text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">All Ready</span>
-        ) : total > 0 ? (
-          <span className="text-xs font-medium text-orange-500 bg-orange-500/10 px-2 py-1 rounded-full">{total - ready} Not Ready</span>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <RefetchIndicator fetching={isFetching} />
+          {ready === total && total > 0 ? (
+            <span className="text-xs font-medium text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">All Ready</span>
+          ) : total > 0 ? (
+            <span className="text-xs font-medium text-orange-500 bg-orange-500/10 px-2 py-1 rounded-full">{total - ready} Not Ready</span>
+          ) : null}
+        </div>
       </div>
       <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Nodes Status</h3>
       <div className="mt-2 flex items-baseline gap-2">
         <span className="text-3xl font-bold">{ready}</span>
         <span className="text-sm text-slate-500 dark:text-slate-400">/ {total} Ready</span>
       </div>
-      <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+      <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
         <div className="h-full bg-blue-500 rounded-full transition-all duration-500" style={{ width: `${percentage}%` }} />
       </div>
     </Link>
   )
 }
 
-function PodsCard({ data, isLoading, isError }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean }) {
+function PodsCard({ data, isLoading, isError, isFetching }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; isFetching: boolean }) {
   if (isError) return <StatCardError />
   if (isLoading) return <StatCardSkeleton />
 
-  const { total, running, pending, failed } = getPodStats(data)
+  const { total, running, pending, failed, issues } = getPodStats(data)
+  const totalIssues = Object.values(issues).reduce((a, b) => a + b, 0)
+  const topIssue = Object.entries(issues).sort((a, b) => b[1] - a[1])[0]
   const runningPct = total > 0 ? (running / total) * 100 : 0
   const pendingPct = total > 0 ? (pending / total) * 100 : 0
   const failedPct = total > 0 ? (failed / total) * 100 : 0
+  const issuePct = total > 0 ? (totalIssues / total) * 100 : 0
 
   return (
     <Link to="/resources/$" params={{ _splat: 'v1/pods' }} className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-purple-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-200 cursor-pointer">
@@ -235,38 +276,47 @@ function PodsCard({ data, isLoading, isError }: { data: KubeListResponse | undef
         <div className="p-2 rounded-lg bg-purple-500/10 text-purple-500">
           <span className="material-symbols-outlined">deployed_code</span>
         </div>
-        {pending > 0 ? (
-          <span className="text-xs font-medium text-orange-500 bg-orange-500/10 px-2 py-1 rounded-full">+{pending} Pending</span>
-        ) : failed > 0 ? (
-          <span className="text-xs font-medium text-red-500 bg-red-500/10 px-2 py-1 rounded-full">{failed} Failed</span>
-        ) : total > 0 ? (
-          <span className="text-xs font-medium text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">Healthy</span>
-        ) : null}
+        <div className="flex items-center gap-2">
+          <RefetchIndicator fetching={isFetching} />
+          {topIssue ? (
+            <span className="text-xs font-medium text-red-500 bg-red-500/10 px-2 py-1 rounded-full">{topIssue[1]} {topIssue[0]}</span>
+          ) : pending > 0 ? (
+            <span className="text-xs font-medium text-orange-500 bg-orange-500/10 px-2 py-1 rounded-full">+{pending} Pending</span>
+          ) : failed > 0 ? (
+            <span className="text-xs font-medium text-red-500 bg-red-500/10 px-2 py-1 rounded-full">{failed} Failed</span>
+          ) : total > 0 ? (
+            <span className="text-xs font-medium text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full">Healthy</span>
+          ) : null}
+        </div>
       </div>
       <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Total Pods</h3>
       <div className="mt-2 flex items-baseline gap-2">
         <span className="text-3xl font-bold">{total}</span>
         <span className="text-sm text-slate-500 dark:text-slate-400">Active</span>
       </div>
-      <div className="mt-4 flex h-1.5 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+      <div className="mt-4 flex h-1.5 w-full rounded-full overflow-hidden bg-slate-100 dark:bg-surface-highlight">
         <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${runningPct}%` }} />
         <div className="h-full bg-orange-500 transition-all duration-500" style={{ width: `${pendingPct}%` }} />
         <div className="h-full bg-red-500 transition-all duration-500" style={{ width: `${failedPct}%` }} />
+        {issuePct > 0 && <div className="h-full bg-red-600 transition-all duration-500" style={{ width: `${issuePct}%` }} />}
       </div>
       <div className="mt-2 flex justify-between text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
         <span>Running</span>
         <span>Pending</span>
         <span>Failed</span>
+        {totalIssues > 0 && <span className="text-red-400">Issues</span>}
       </div>
     </Link>
   )
 }
 
-function CpuCard({ data, isLoading, isError }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean }) {
+function CpuCard({ data, isLoading, isError, metricsItems, isFetching }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; metricsItems: NodeMetricItem[] | undefined; isFetching: boolean }) {
   if (isError) return <StatCardError />
   if (isLoading) return <StatCardSkeleton />
 
   const { totalCpuCores } = getNodeResourceInfo(data)
+  const usage = getMetricsUsage(metricsItems)
+  const pct = usage && totalCpuCores > 0 ? Math.round((usage.cpuCores / totalCpuCores) * 100) : null
 
   return (
     <Link to="/nodes" className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-orange-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-orange-500/10 transition-all duration-200 cursor-pointer">
@@ -274,25 +324,43 @@ function CpuCard({ data, isLoading, isError }: { data: KubeListResponse | undefi
         <div className="p-2 rounded-lg bg-orange-500/10 text-orange-500">
           <span className="material-symbols-outlined">memory</span>
         </div>
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Capacity</span>
+        <div className="flex items-center gap-2">
+          <RefetchIndicator fetching={isFetching} />
+          {pct !== null ? (
+            <span className={`text-xs font-medium px-2 py-1 rounded-full ${pct > 80 ? 'text-red-500 bg-red-500/10' : pct > 50 ? 'text-amber-500 bg-amber-500/10' : 'text-emerald-500 bg-emerald-500/10'}`}>{pct}% Used</span>
+          ) : (
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Capacity</span>
+          )}
+        </div>
       </div>
-      <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">CPU Capacity</h3>
+      <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">CPU</h3>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-bold">{totalCpuCores}</span>
-        <span className="text-sm text-slate-500 dark:text-slate-400">Cores</span>
+        {usage ? (
+          <>
+            <span className="text-3xl font-bold">{usage.cpuCores.toFixed(1)}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">/ {totalCpuCores} Cores</span>
+          </>
+        ) : (
+          <>
+            <span className="text-3xl font-bold">{totalCpuCores}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Cores</span>
+          </>
+        )}
       </div>
-      <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full" style={{ width: '100%' }} />
+      <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full transition-all duration-500" style={{ width: pct !== null ? `${pct}%` : '100%' }} />
       </div>
     </Link>
   )
 }
 
-function MemoryCard({ data, isLoading, isError }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean }) {
+function MemoryCard({ data, isLoading, isError, metricsItems, isFetching }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; metricsItems: NodeMetricItem[] | undefined; isFetching: boolean }) {
   if (isError) return <StatCardError />
   if (isLoading) return <StatCardSkeleton />
 
-  const { totalMemoryGiB } = getNodeResourceInfo(data)
+  const { totalMemoryBytes } = getNodeResourceInfo(data)
+  const usage = getMetricsUsage(metricsItems)
+  const pct = usage && totalMemoryBytes > 0 ? Math.round((usage.memoryBytes / totalMemoryBytes) * 100) : null
 
   return (
     <Link to="/nodes" className="block bg-surface-light dark:bg-surface-dark rounded-xl p-6 border border-border-light dark:border-border-dark shadow-sm hover:border-pink-500/40 hover:-translate-y-1 hover:shadow-lg hover:shadow-pink-500/10 transition-all duration-200 cursor-pointer">
@@ -300,15 +368,31 @@ function MemoryCard({ data, isLoading, isError }: { data: KubeListResponse | und
         <div className="p-2 rounded-lg bg-pink-500/10 text-pink-500">
           <span className="material-symbols-outlined">hard_drive</span>
         </div>
-        <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Capacity</span>
+        <div className="flex items-center gap-2">
+          <RefetchIndicator fetching={isFetching} />
+          {pct !== null ? (
+            <span className={`text-xs font-medium px-2 py-1 rounded-full ${pct > 80 ? 'text-red-500 bg-red-500/10' : pct > 50 ? 'text-amber-500 bg-amber-500/10' : 'text-emerald-500 bg-emerald-500/10'}`}>{pct}% Used</span>
+          ) : (
+            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Capacity</span>
+          )}
+        </div>
       </div>
-      <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Memory Capacity</h3>
+      <h3 className="text-slate-500 dark:text-slate-400 text-sm font-medium">Memory</h3>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-bold">{totalMemoryGiB}</span>
-        <span className="text-sm text-slate-500 dark:text-slate-400">GiB Total</span>
+        {usage ? (
+          <>
+            <span className="text-3xl font-bold">{formatMemory(usage.memoryBytes)}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">/ {formatMemory(totalMemoryBytes)}</span>
+          </>
+        ) : (
+          <>
+            <span className="text-3xl font-bold">{formatMemory(totalMemoryBytes)}</span>
+            <span className="text-sm text-slate-500 dark:text-slate-400">Total</span>
+          </>
+        )}
       </div>
-      <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-        <div className="h-full bg-gradient-to-r from-pink-400 to-pink-600 rounded-full" style={{ width: '100%' }} />
+      <div className="mt-4 h-1.5 w-full bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
+        <div className="h-full bg-gradient-to-r from-pink-400 to-pink-600 rounded-full transition-all duration-500" style={{ width: pct !== null ? `${pct}%` : '100%' }} />
       </div>
     </Link>
   )
@@ -337,14 +421,17 @@ function EventsTableSkeleton() {
   )
 }
 
-function RecentEventsTable({ data, isLoading, isError }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean }) {
+function RecentEventsTable({ data, isLoading, isError, isFetching }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; isFetching: boolean }) {
   const events = getRecentEvents(data)
   const totalCount = (data?.items ?? []).length
 
   return (
     <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
       <div className="p-6 border-b border-border-light dark:border-border-dark flex items-center justify-between">
-        <h3 className="text-lg font-bold">Recent Events</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="text-lg font-bold">Recent Events</h3>
+          <RefetchIndicator fetching={isFetching} />
+        </div>
         <Link to="/events" className="text-sm text-primary hover:text-primary/80 font-medium transition-colors">
           View All Events
         </Link>
@@ -365,7 +452,7 @@ function RecentEventsTable({ data, isLoading, isError }: { data: KubeListRespons
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-border-light dark:border-border-dark bg-slate-50 dark:bg-slate-800/50">
+              <tr className="border-b border-border-light dark:border-border-dark bg-slate-50 dark:bg-surface-highlight/50">
                 <th className="p-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider w-12">Type</th>
                 <th className="p-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Object</th>
                 <th className="p-4 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Reason</th>
@@ -383,7 +470,7 @@ function RecentEventsTable({ data, isLoading, isError }: { data: KubeListRespons
                 return (
                   <tr
                     key={event.metadata?.name}
-                    className="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors"
+                    className="group hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors"
                   >
                     <td className="p-4">
                       <EventTypeIcon type={event.type} />
@@ -410,6 +497,353 @@ function RecentEventsTable({ data, isLoading, isError }: { data: KubeListRespons
   )
 }
 
+const TOOLTIP_STYLE = {
+  backgroundColor: 'rgba(15,23,42,0.95)',
+  border: '1px solid rgba(148,163,184,0.2)',
+  borderRadius: '8px',
+  fontSize: '12px',
+  color: '#e2e8f0',
+} as const
+
+function getNamespacePodCounts(data: KubeListResponse | undefined) {
+  const items = data?.items ?? []
+  const counts: Record<string, number> = {}
+  for (const pod of items) {
+    const ns = ((pod as { metadata?: { namespace?: string } }).metadata?.namespace) ?? 'unknown'
+    counts[ns] = (counts[ns] ?? 0) + 1
+  }
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10)
+}
+
+function getNodeResourceData(
+  nodes: KubeListResponse | undefined,
+  metricsItems: NodeMetricItem[] | undefined,
+) {
+  const items = nodes?.items ?? []
+  const metricsMap = new Map<string, NodeMetricItem>()
+  for (const m of metricsItems ?? []) {
+    metricsMap.set(m.metadata.name, m)
+  }
+  return items.map((node) => {
+    const name = ((node as { metadata?: { name?: string } }).metadata?.name) ?? 'unknown'
+    const capacity = (node as { status?: NodeStatus }).status?.capacity
+    const metrics = metricsMap.get(name)
+
+    const cpuCap = capacity?.cpu ? parseCpuToCores(capacity.cpu) : 0
+    const memCapBytes = capacity?.memory ? parseMemoryToBytes(capacity.memory) : 0
+    const cpuUsed = metrics ? parseCpuToCores(metrics.usage.cpu) : 0
+    const memUsedBytes = metrics ? parseMemoryToBytes(metrics.usage.memory) : 0
+
+    return {
+      name: name.length > 15 ? name.slice(0, 13) + '..' : name,
+      cpuUsed: Math.round(cpuUsed * 100) / 100,
+      cpuCap: Math.round(cpuCap * 100) / 100,
+      cpuPct: cpuCap > 0 ? Math.round((cpuUsed / cpuCap) * 100) : 0,
+      memUsedGi: Math.round((memUsedBytes / 1024 ** 3) * 10) / 10,
+      memCapGi: Math.round((memCapBytes / 1024 ** 3) * 10) / 10,
+      memPct: memCapBytes > 0 ? Math.round((memUsedBytes / memCapBytes) * 100) : 0,
+    }
+  }).sort((a, b) => b.cpuPct - a.cpuPct)
+}
+
+function transformTrendData(response: PrometheusQueryResponse | undefined): Array<{ time: number; value: number }> {
+  if (!response?.data?.result?.[0]?.values) return []
+  return response.data.result[0].values.map(([ts, val]) => ({
+    time: ts,
+    value: parseFloat(val),
+  }))
+}
+
+function formatTrendTime(ts: number): string {
+  return new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function formatCpuChart(cores: number): string {
+  if (cores < 0.01) return `${(cores * 1000).toFixed(0)}m`
+  return `${cores.toFixed(2)}`
+}
+
+function formatMemChart(bytes: number): string {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)} GiB`
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(0)} MiB`
+  return `${(bytes / 1024).toFixed(0)} KiB`
+}
+
+function useClusterCpuTrend(enabled: boolean) {
+  const interval = usePollingInterval(60_000)
+  return useQuery<PrometheusQueryResponse>({
+    queryKey: ['overview', 'cpu-trend'],
+    queryFn: () => {
+      const now = Math.floor(Date.now() / 1000)
+      return api.prometheusQueryRange({
+        query: 'sum(rate(container_cpu_usage_seconds_total{container!="",container!="POD"}[5m]))',
+        start: now - 3600,
+        end: now,
+        step: '60s',
+      })
+    },
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: interval,
+  })
+}
+
+function useClusterMemoryTrend(enabled: boolean) {
+  const interval = usePollingInterval(60_000)
+  return useQuery<PrometheusQueryResponse>({
+    queryKey: ['overview', 'memory-trend'],
+    queryFn: () => {
+      const now = Math.floor(Date.now() / 1000)
+      return api.prometheusQueryRange({
+        query: 'sum(container_memory_working_set_bytes{container!="",container!="POD"})',
+        start: now - 3600,
+        end: now,
+        step: '60s',
+      })
+    },
+    enabled,
+    staleTime: 30_000,
+    refetchInterval: interval,
+  })
+}
+
+function ChartCard({ title, icon, iconColor, isFetching, children }: { title: string; icon: string; iconColor: string; isFetching?: boolean; children: ReactNode }) {
+  return (
+    <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <span className={`material-symbols-outlined text-[20px] ${iconColor}`}>{icon}</span>
+        <h3 className="font-semibold">{title}</h3>
+        {isFetching && <RefetchIndicator fetching />}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function ChartCardSkeleton({ title }: { title: string }) {
+  return (
+    <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm p-6">
+      <div className="flex items-center gap-2 mb-4">
+        <Skeleton className="h-5 w-5 rounded" />
+        <span className="font-semibold">{title}</span>
+      </div>
+      <Skeleton className="h-56 w-full rounded-lg" />
+    </div>
+  )
+}
+
+function PodStatusChart({ data, isLoading, isError, isFetching }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; isFetching: boolean }) {
+  if (isError) return <StatCardError />
+  if (isLoading) return <ChartCardSkeleton title="Pod Status" />
+
+  const { running, pending, failed, succeeded, issues } = getPodStats(data)
+  const chartData = [
+    { name: 'Running', value: running, fill: '#10b981' },
+    { name: 'Pending', value: pending, fill: '#f59e0b' },
+    { name: 'Failed', value: failed, fill: '#ef4444' },
+    { name: 'Succeeded', value: succeeded, fill: '#6b7280' },
+    ...Object.entries(issues).map(([reason, count]) => ({
+      name: reason, value: count, fill: '#dc2626',
+    })),
+  ].filter(d => d.value > 0)
+
+  if (chartData.length === 0) return null
+
+  return (
+    <ChartCard title="Pod Status Distribution" icon="donut_large" iconColor="text-emerald-500" isFetching={isFetching}>
+      <div className="h-56 flex items-center">
+        <div className="flex-1 h-full">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+            <PieChart>
+              <Pie
+                data={chartData}
+                dataKey="value"
+                nameKey="name"
+                cx="50%"
+                cy="50%"
+                innerRadius={55}
+                outerRadius={85}
+                paddingAngle={2}
+                strokeWidth={0}
+              />
+              <Tooltip contentStyle={TOOLTIP_STYLE} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex flex-col gap-1.5 min-w-[120px]">
+          {chartData.map((d) => (
+            <div key={d.name} className="flex items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
+              <span className="text-xs text-slate-500 dark:text-slate-400 truncate">{d.name}</span>
+              <span className="text-xs font-semibold ml-auto">{d.value}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </ChartCard>
+  )
+}
+
+function NamespacePodChart({ data, isLoading, isError, isFetching }: { data: KubeListResponse | undefined; isLoading: boolean; isError: boolean; isFetching: boolean }) {
+  if (isError) return <StatCardError />
+  if (isLoading) return <ChartCardSkeleton title="Pods by Namespace" />
+
+  const nsCounts = getNamespacePodCounts(data)
+  if (nsCounts.length === 0) return null
+
+  return (
+    <ChartCard title="Pods by Namespace" icon="folder" iconColor="text-blue-500" isFetching={isFetching}>
+      <div className="h-56">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <BarChart data={nsCounts} layout="vertical" margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
+            <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+            <YAxis
+              type="category"
+              dataKey="name"
+              width={110}
+              tick={{ fontSize: 11, fill: '#94a3b8' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: 'rgba(148,163,184,0.1)' }} />
+            <Bar dataKey="count" fill="#3b82f6" radius={[0, 4, 4, 0]} maxBarSize={20} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </ChartCard>
+  )
+}
+
+function NodeResourceChart({ nodes, metricsItems, isLoading, isError, isFetching }: {
+  nodes: KubeListResponse | undefined
+  metricsItems: NodeMetricItem[] | undefined
+  isLoading: boolean
+  isError: boolean
+  isFetching: boolean
+}) {
+  if (isError) return <StatCardError />
+  if (isLoading) return <ChartCardSkeleton title="Node Resource Usage" />
+
+  const nodeData = getNodeResourceData(nodes, metricsItems)
+  if (nodeData.length === 0 || !metricsItems?.length) return null
+
+  return (
+    <ChartCard title="Node Resource Usage" icon="dns" iconColor="text-blue-500" isFetching={isFetching}>
+      <div className="h-72">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <BarChart data={nodeData} margin={{ left: 0, right: 16, top: 8, bottom: 0 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" vertical={false} />
+            <XAxis
+              dataKey="name"
+              tick={{ fontSize: 10, fill: '#94a3b8' }}
+              axisLine={false}
+              tickLine={false}
+              interval={0}
+              angle={nodeData.length > 6 ? -35 : 0}
+              textAnchor={nodeData.length > 6 ? 'end' : 'middle'}
+              height={nodeData.length > 6 ? 60 : 30}
+            />
+            <YAxis
+              domain={[0, 100]}
+              tick={{ fontSize: 11, fill: '#94a3b8' }}
+              axisLine={false}
+              tickLine={false}
+              unit="%"
+              width={45}
+            />
+            <Tooltip
+              contentStyle={TOOLTIP_STYLE}
+              cursor={{ fill: 'rgba(148,163,184,0.1)' }}
+              formatter={(value) => [`${value ?? 0}%`, '']}
+            />
+            <Legend wrapperStyle={{ fontSize: '12px' }} />
+            <Bar dataKey="cpuPct" name="CPU" fill="#f97316" radius={[3, 3, 0, 0]} maxBarSize={24} />
+            <Bar dataKey="memPct" name="Memory" fill="#ec4899" radius={[3, 3, 0, 0]} maxBarSize={24} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+    </ChartCard>
+  )
+}
+
+function TrendChart({ title, icon, iconColor, data, isLoading, isFetching, formatValue, color, unit }: {
+  title: string
+  icon: string
+  iconColor: string
+  data: Array<{ time: number; value: number }>
+  isLoading: boolean
+  isFetching: boolean
+  formatValue: (v: number) => string
+  color: string
+  unit: string
+}) {
+  if (isLoading) return <ChartCardSkeleton title={title} />
+
+  if (data.length === 0) {
+    return (
+      <ChartCard title={title} icon={icon} iconColor={iconColor} isFetching={isFetching}>
+        <div className="h-48 flex items-center justify-center text-slate-400 text-sm">
+          No data available
+        </div>
+      </ChartCard>
+    )
+  }
+
+  const gradientId = `trend-${title.replace(/\s/g, '')}`
+
+  return (
+    <ChartCard title={title} icon={icon} iconColor={iconColor} isFetching={isFetching}>
+      <div className="flex items-center gap-2 -mt-2 mb-2">
+        <span className="text-xs text-slate-500">Last 1 hour</span>
+        <span className="text-xs text-slate-400 ml-auto">{unit}</span>
+      </div>
+      <div className="h-48">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <AreaChart data={data}>
+            <defs>
+              <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={color} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" />
+            <XAxis
+              dataKey="time"
+              tickFormatter={formatTrendTime}
+              tick={{ fontSize: 11, fill: '#94a3b8' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tickFormatter={formatValue}
+              tick={{ fontSize: 11, fill: '#94a3b8' }}
+              axisLine={false}
+              tickLine={false}
+              width={60}
+            />
+            <Tooltip
+              contentStyle={TOOLTIP_STYLE}
+              labelFormatter={(label) => formatTrendTime(label as number)}
+              formatter={(value) => [formatValue(value as number), '']}
+            />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke={color}
+              fill={`url(#${gradientId})`}
+              strokeWidth={2}
+              dot={false}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </ChartCard>
+  )
+}
+
 function ClusterOverview() {
   const queryClient = useQueryClient()
 
@@ -418,6 +852,15 @@ function ClusterOverview() {
   const namespacesQuery = useNamespaces()
   const deploymentsQuery = useDeployments()
   const eventsQuery = useEvents()
+  const metricsQuery = useNodeMetrics()
+  const metricsItems = metricsQuery.data?.available ? metricsQuery.data.items : undefined
+
+  const promStatus = usePrometheusStatus()
+  const promAvailable = promStatus.data?.available ?? false
+  const cpuTrend = useClusterCpuTrend(promAvailable)
+  const memTrend = useClusterMemoryTrend(promAvailable)
+  const cpuTrendData = transformTrendData(cpuTrend.data)
+  const memTrendData = transformTrendData(memTrend.data)
 
   const namespaceCount = ((namespacesQuery.data as KubeListResponse | undefined)?.items ?? []).length
   const deploymentCount = ((deploymentsQuery.data as KubeListResponse | undefined)?.items ?? []).length
@@ -440,10 +883,11 @@ function ClusterOverview() {
             )}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <PollingSettings />
           <button
             onClick={handleRefresh}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800 text-sm font-medium transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-surface-hover text-sm font-medium transition-colors"
           >
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Refresh
@@ -456,28 +900,85 @@ function ClusterOverview() {
           data={nodesQuery.data as KubeListResponse | undefined}
           isLoading={nodesQuery.isLoading}
           isError={nodesQuery.isError}
+          isFetching={nodesQuery.isFetching}
         />
         <PodsCard
           data={podsQuery.data as KubeListResponse | undefined}
           isLoading={podsQuery.isLoading}
           isError={podsQuery.isError}
+          isFetching={podsQuery.isFetching}
         />
         <CpuCard
           data={nodesQuery.data as KubeListResponse | undefined}
           isLoading={nodesQuery.isLoading}
           isError={nodesQuery.isError}
+          metricsItems={metricsItems}
+          isFetching={nodesQuery.isFetching || metricsQuery.isFetching}
         />
         <MemoryCard
           data={nodesQuery.data as KubeListResponse | undefined}
           isLoading={nodesQuery.isLoading}
           isError={nodesQuery.isError}
+          metricsItems={metricsItems}
+          isFetching={nodesQuery.isFetching || metricsQuery.isFetching}
         />
       </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+        <PodStatusChart
+          data={podsQuery.data as KubeListResponse | undefined}
+          isLoading={podsQuery.isLoading}
+          isError={podsQuery.isError}
+          isFetching={podsQuery.isFetching}
+        />
+        <NamespacePodChart
+          data={podsQuery.data as KubeListResponse | undefined}
+          isLoading={podsQuery.isLoading}
+          isError={podsQuery.isError}
+          isFetching={podsQuery.isFetching}
+        />
+      </div>
+
+      <NodeResourceChart
+        nodes={nodesQuery.data as KubeListResponse | undefined}
+        metricsItems={metricsItems}
+        isLoading={nodesQuery.isLoading || metricsQuery.isLoading}
+        isError={nodesQuery.isError}
+        isFetching={nodesQuery.isFetching || metricsQuery.isFetching}
+      />
+
+      {promAvailable && (
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+          <TrendChart
+            title="CPU Trend"
+            icon="show_chart"
+            iconColor="text-orange-500"
+            data={cpuTrendData}
+            isLoading={cpuTrend.isLoading}
+            isFetching={cpuTrend.isFetching}
+            formatValue={formatCpuChart}
+            color="#f97316"
+            unit="cores"
+          />
+          <TrendChart
+            title="Memory Trend"
+            icon="show_chart"
+            iconColor="text-pink-500"
+            data={memTrendData}
+            isLoading={memTrend.isLoading}
+            isFetching={memTrend.isFetching}
+            formatValue={formatMemChart}
+            color="#ec4899"
+            unit="bytes"
+          />
+        </div>
+      )}
 
       <RecentEventsTable
         data={eventsQuery.data as KubeListResponse | undefined}
         isLoading={eventsQuery.isLoading}
         isError={eventsQuery.isError}
+        isFetching={eventsQuery.isFetching}
       />
     </div>
   )

@@ -103,7 +103,7 @@ export const DeploymentRolloutTab = memo(function DeploymentRolloutTab({
           <div className="px-6 py-8 text-center text-sm text-slate-400">No replica sets found</div>
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
+            <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
               <tr>
                 <th className="px-6 py-3">Revision</th>
                 <th className="px-6 py-3">ReplicaSet</th>

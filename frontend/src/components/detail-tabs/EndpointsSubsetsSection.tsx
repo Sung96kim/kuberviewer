@@ -28,7 +28,7 @@ type EndpointsSubsetsSectionProps = {
 
 function AddressRow({ address, ready }: { address: Address; ready: boolean }) {
   return (
-    <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+    <tr className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
       <td className="px-4 py-3 text-sm font-mono text-slate-900 dark:text-white">
         {address.ip}
       </td>
@@ -106,7 +106,7 @@ export const EndpointsSubsetsSection = memo(function EndpointsSubsetsSection({ r
             {allPorts.map((port) => (
               <div
                 key={`${port.port}-${port.protocol}`}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark"
               >
                 <span className="material-symbols-outlined text-[18px] text-primary">lan</span>
                 <div className="text-sm">
@@ -147,7 +147,7 @@ export const EndpointsSubsetsSection = memo(function EndpointsSubsetsSection({ r
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+              <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
                 <tr>
                   <th className="px-4 py-3">IP</th>
                   <th className="px-4 py-3">Status</th>

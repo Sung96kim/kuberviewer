@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import { getStatusClasses } from '#/lib/resource-helpers'
 
@@ -20,6 +21,7 @@ type PodContainersSectionProps = {
   containerStatuses: ContainerStatus[]
   initContainerStatuses: ContainerStatus[]
   isLoading: boolean
+  onOpenTerminal?: (container: string) => void
 }
 
 function getContainerState(status: ContainerStatus): string {
@@ -30,9 +32,10 @@ function getContainerState(status: ContainerStatus): string {
   return 'Unknown'
 }
 
-function ContainerCard({ status, isInit }: { status: ContainerStatus; isInit: boolean }) {
+function ContainerCard({ status, isInit, onOpenTerminal }: { status: ContainerStatus; isInit: boolean; onOpenTerminal?: (container: string) => void }) {
   const state = getContainerState(status)
   const classes = getStatusClasses(state)
+  const isRunning = state === 'Running'
 
   return (
     <div className="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark p-4">
@@ -41,14 +44,27 @@ function ContainerCard({ status, isInit }: { status: ContainerStatus; isInit: bo
           <div className={`h-2.5 w-2.5 rounded-full ${classes.dot}`} />
           <span className="text-sm font-bold">{status.name}</span>
           {isInit && (
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-surface-highlight px-1.5 py-0.5 rounded">
               init
             </span>
           )}
         </div>
-        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${classes.badge}`}>
-          {state}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${classes.badge}`}>
+            {state}
+          </span>
+          {isRunning && !isInit && onOpenTerminal && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => onOpenTerminal(status.name)}
+              className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800"
+              title={`Open terminal for ${status.name}`}
+            >
+              <span className="material-symbols-outlined text-[16px]">terminal</span>
+            </Button>
+          )}
+        </div>
       </div>
       <div className="space-y-2 text-sm">
         <div className="flex justify-between">
@@ -83,7 +99,7 @@ function ContainersSkeleton() {
       <div className="px-6 py-4 border-b border-border-light dark:border-border-dark">
         <Skeleton className="h-5 w-32" />
       </div>
-      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="p-4 grid grid-cols-1 gap-4">
         {Array.from({ length: 2 }).map((_, i) => (
           <div key={i} className="rounded-lg border border-border-light dark:border-border-dark p-4 space-y-3">
             <Skeleton className="h-4 w-40" />
@@ -101,6 +117,7 @@ export const PodContainersSection = memo(function PodContainersSection({
   containerStatuses,
   initContainerStatuses,
   isLoading,
+  onOpenTerminal,
 }: PodContainersSectionProps) {
   if (isLoading) return <ContainersSkeleton />
 
@@ -112,13 +129,13 @@ export const PodContainersSection = memo(function PodContainersSection({
   if (allContainers.length === 0) return null
 
   return (
-    <div className="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark overflow-hidden">
-      <div className="px-6 py-4 border-b border-border-light dark:border-border-dark">
+    <div className="bg-surface-light dark:bg-surface-dark rounded-lg border border-border-light dark:border-border-dark overflow-hidden flex flex-col">
+      <div className="px-6 py-4 border-b border-border-light dark:border-border-dark shrink-0">
         <h3 className="text-base font-bold">Containers ({allContainers.length})</h3>
       </div>
-      <div className="p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="p-4 grid grid-cols-1 gap-4 overflow-y-auto min-h-0">
         {allContainers.map(({ status, isInit }) => (
-          <ContainerCard key={`${isInit ? 'init-' : ''}${status.name}`} status={status} isInit={isInit} />
+          <ContainerCard key={`${isInit ? 'init-' : ''}${status.name}`} status={status} isInit={isInit} onOpenTerminal={onOpenTerminal} />
         ))}
       </div>
     </div>

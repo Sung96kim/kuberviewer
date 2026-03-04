@@ -1,4 +1,5 @@
 import { memo } from 'react'
+import { Link } from '@tanstack/react-router'
 import { relativeTime } from '#/lib/time'
 
 type ServiceSpec = {
@@ -70,6 +71,19 @@ export const ServiceHeader = memo(function ServiceHeader({
                 Type: <span className="text-slate-700 dark:text-slate-300 font-medium">{serviceType}</span>
               </span>
               <span className="text-slate-500 dark:text-slate-600">·</span>
+              {metadata?.namespace && (
+                <>
+                  <Link
+                    to="/namespaces/$name"
+                    params={{ name: metadata.namespace }}
+                    className="flex items-center gap-1 hover:text-primary transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">folder_open</span>
+                    Namespace: <span className="text-primary font-medium">{metadata.namespace}</span>
+                  </Link>
+                  <span className="text-slate-500 dark:text-slate-600">·</span>
+                </>
+              )}
               <span className="flex items-center gap-1">
                 <span className="material-symbols-outlined text-[14px]">settings_ethernet</span>
                 ClusterIP: <span className="text-slate-700 dark:text-slate-300 font-mono text-xs">{clusterIP}</span>
@@ -109,7 +123,7 @@ export const ServiceHeader = memo(function ServiceHeader({
                   <span className="text-lg font-bold font-mono">{externalIP}</span>
                   <button
                     onClick={() => navigator.clipboard.writeText(externalIP)}
-                    className="p-0.5 rounded hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                    className="p-0.5 rounded hover:bg-slate-50 dark:hover:bg-surface-hover text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
                     title="Copy"
                   >
                     <span className="material-symbols-outlined text-[14px]">content_copy</span>

@@ -78,7 +78,7 @@ export const DaemonSetSection = memo(function DaemonSetSection({ resource }: Dae
           </div>
           <div className="p-4 flex flex-wrap gap-2">
             {Object.entries(selector).map(([k, v]) => (
-              <div key={k} className="flex h-7 items-center gap-1.5 rounded bg-slate-100 dark:bg-slate-800 px-2.5 border border-border-light dark:border-border-dark">
+              <div key={k} className="flex h-7 items-center gap-1.5 rounded bg-slate-100 dark:bg-surface-highlight px-2.5 border border-border-light dark:border-border-dark">
                 <span className="material-symbols-outlined text-[14px] text-slate-500 dark:text-slate-400">label</span>
                 <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{k}={v}</span>
               </div>

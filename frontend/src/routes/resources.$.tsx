@@ -3,6 +3,7 @@ import { createFileRoute, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAPIResources } from '#/hooks/use-api-resources'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { useSettings } from '#/hooks/use-settings'
 import { getColumnsForKind, parseResourcePath, precomputePodRows } from '#/lib/resource-helpers'
 import { ResourceTable } from '#/components/resources/ResourceTable'
 import { ResourceDetail } from '#/components/resources/ResourceDetail'
@@ -118,7 +119,7 @@ function NamespaceFilter({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm">
+        <button className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-surface-hover transition-colors text-sm">
           <span className="material-symbols-outlined text-[18px] text-slate-400">filter_alt</span>
           <span className="font-medium text-slate-700 dark:text-slate-200">
             {selected.size === allNamespaces.length ? 'All namespaces' : `${selected.size} namespace${selected.size !== 1 ? 's' : ''}`}
@@ -158,6 +159,7 @@ function NamespaceFilter({
 function ResourceListView({ group, version, resourceName, filterNamespace }: ResourceListViewProps) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { settings } = useSettings()
   const [hasExpandedRows, setHasExpandedRows] = useState(false)
   const [inspectPod, setInspectPod] = useState<{ namespace: string; name: string } | null>(null)
   const { data: apiData, isLoading: apiLoading } = useAPIResources()
@@ -204,10 +206,11 @@ function ResourceListView({ group, version, resourceName, filterNamespace }: Res
   const effectiveNamespaces = useMemo(() => {
     if (!isPod) return null
     if (selectedNamespaces) return selectedNamespaces
-    if (allNamespaces.includes('default')) return new Set(['default'])
+    const defaultNs = settings.defaultNamespace || 'default'
+    if (allNamespaces.includes(defaultNs)) return new Set([defaultNs])
     if (allNamespaces.length > 0) return new Set([allNamespaces[0]])
     return new Set<string>()
-  }, [isPod, selectedNamespaces, allNamespaces])
+  }, [isPod, selectedNamespaces, allNamespaces, settings.defaultNamespace])
 
   const items = useMemo(() => {
     if (!isPod) return allItems
@@ -319,7 +322,7 @@ function ResourceListView({ group, version, resourceName, filterNamespace }: Res
           )}
           <button
             onClick={handleRefresh}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium shadow-sm"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-surface-light dark:bg-surface-dark border border-border-light dark:border-border-dark text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-surface-hover transition-colors text-sm font-medium shadow-sm"
           >
             <span className="material-symbols-outlined text-[18px]">refresh</span>
             Refresh
@@ -398,7 +401,7 @@ function ResourceDetailPage({ group, version, resourceName, namespace, name }: R
   const breadcrumbs = useMemo(() => [
     { label: 'Cluster', href: '/' },
     { label: kind, href: `/resources/${listSplat}` },
-    ...(namespace ? [{ label: namespace }] : []),
+    ...(namespace ? [{ label: namespace, href: `/namespaces/${namespace}` }] : []),
     { label: name },
   ], [kind, listSplat, namespace, name])
 

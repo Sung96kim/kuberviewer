@@ -94,7 +94,7 @@ export const PodEventsSection = memo(function PodEventsSection({
         <div className="px-6 py-8 text-center text-sm text-slate-400">No events</div>
       ) : (
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
+          <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
             <tr>
               <th className="px-6 py-3 w-10">Type</th>
               <th className="px-6 py-3">Reason</th>
@@ -107,7 +107,7 @@ export const PodEventsSection = memo(function PodEventsSection({
             {events.map((event, i) => {
               const ts = getEventTimestamp(event)
               return (
-                <tr key={event.metadata?.name ?? i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                <tr key={event.metadata?.name ?? i} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30">
                   <td className="px-6 py-3">
                     <EventTypeIcon type={event.type ?? 'Normal'} />
                   </td>

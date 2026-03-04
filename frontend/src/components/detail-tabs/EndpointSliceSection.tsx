@@ -38,7 +38,7 @@ export const EndpointSliceSection = memo(function EndpointSliceSection({ resourc
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3">
         {addressType && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
             <span className="material-symbols-outlined text-[18px] text-primary">hub</span>
             <span className="text-sm text-slate-500 dark:text-slate-400">Address Type:</span>
             <span className="text-sm font-medium text-slate-900 dark:text-white">{addressType}</span>
@@ -55,7 +55,7 @@ export const EndpointSliceSection = memo(function EndpointSliceSection({ resourc
             {ports.map((port, i) => (
               <div
                 key={i}
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark"
+                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark"
               >
                 <span className="material-symbols-outlined text-[18px] text-primary">lan</span>
                 <div className="text-sm">
@@ -86,7 +86,7 @@ export const EndpointSliceSection = memo(function EndpointSliceSection({ resourc
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+              <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
                 <tr>
                   <th className="px-4 py-3">Addresses</th>
                   <th className="px-4 py-3">Status</th>
@@ -100,7 +100,7 @@ export const EndpointSliceSection = memo(function EndpointSliceSection({ resourc
                   const ready = ep.conditions?.ready !== false
                   const terminating = ep.conditions?.terminating === true
                   return (
-                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <tr key={i} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                       <td className="px-4 py-3 font-mono text-sm text-slate-900 dark:text-white">
                         {ep.addresses.join(', ')}
                       </td>

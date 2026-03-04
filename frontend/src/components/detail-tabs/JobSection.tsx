@@ -135,7 +135,7 @@ export const JobSection = memo(function JobSection({ resource }: JobSectionProps
               return (
                 <div key={c.type} className="px-6 py-4 flex items-start justify-between gap-4">
                   <div className="flex items-center gap-3">
-                    <div className={`p-1.5 rounded ${isTrue ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}`}>
+                    <div className={`p-1.5 rounded ${isTrue ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-100 dark:bg-surface-highlight text-slate-400'}`}>
                       <span className="material-symbols-outlined text-[20px]">{isTrue ? 'check_circle' : 'cancel'}</span>
                     </div>
                     <div>

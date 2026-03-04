@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '#/api'
 import { useResourceWatch } from '#/hooks/use-resource-watch'
+import { usePollingInterval } from '#/hooks/use-polling'
 
 type ResourceListParams = {
   group: string
@@ -70,11 +71,12 @@ function stableMerge(oldData: KubeList | undefined, newData: KubeList): KubeList
 
 export function useResourceList(params: ResourceListParams) {
   const shouldWatch = params.watch ?? false
+  const interval = usePollingInterval(shouldWatch ? 30_000 : 10_000)
 
   const query = useQuery({
     queryKey: ['resources', params.group, params.version, params.name, params.namespace, params.limit, params.labelSelector, params.fieldSelector],
     queryFn: () => api.listResources(params),
-    refetchInterval: shouldWatch ? 30_000 : 10_000,
+    refetchInterval: interval,
     structuralSharing: stableMerge as (oldData: unknown, newData: unknown) => unknown,
   })
 

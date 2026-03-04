@@ -82,7 +82,7 @@ export const ResourceEventsTab = memo(function ResourceEventsTab({
         </div>
       ) : (
         <table className="w-full text-left text-sm">
-          <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase font-semibold text-slate-500 dark:text-slate-500 tracking-wider">
+          <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase font-semibold text-slate-500 dark:text-slate-500 tracking-wider">
             <tr>
               <th className="px-6 py-3 w-10">Type</th>
               <th className="px-6 py-3">Reason</th>
@@ -96,7 +96,7 @@ export const ResourceEventsTab = memo(function ResourceEventsTab({
               const ts = getEventTimestamp(event)
               const isWarning = event.type === 'Warning'
               return (
-                <tr key={event.metadata?.name ?? i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                <tr key={event.metadata?.name ?? i} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30">
                   <td className="px-6 py-3">
                     <span className={`material-symbols-outlined text-[18px] ${isWarning ? 'text-amber-500' : 'text-blue-400'}`}>
                       {isWarning ? 'warning' : 'info'}

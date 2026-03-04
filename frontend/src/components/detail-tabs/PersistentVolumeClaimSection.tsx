@@ -37,18 +37,18 @@ export const PersistentVolumeClaimSection = memo(function PersistentVolumeClaimS
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${phaseColor}`}>
             <span className="w-1.5 h-1.5 rounded-full bg-current" />
             {phase}
           </span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
           <span className="material-symbols-outlined text-[18px] text-primary">database</span>
           <span className="text-sm text-slate-600 dark:text-slate-400">Storage Class:</span>
           <span className="text-sm font-medium text-slate-900 dark:text-white">{storageClass}</span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
           <span className="material-symbols-outlined text-[18px] text-amber-500">hard_drive</span>
           <span className="text-sm text-slate-600 dark:text-slate-400">Volume Mode:</span>
           <span className="text-sm font-medium text-slate-900 dark:text-white">{volumeMode}</span>

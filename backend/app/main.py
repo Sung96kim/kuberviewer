@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.kube.manager import KubeManager, OIDCAuthRequired
-from app.routers import auth, cluster, contexts, discovery, exec, logs, resources, watch
+from app.routers import auth, cluster, contexts, discovery, exec, logs, metrics, prometheus, resources, watch
 
 
 @asynccontextmanager
@@ -44,5 +44,7 @@ app.include_router(contexts.router)
 app.include_router(discovery.router)
 app.include_router(exec.router)
 app.include_router(logs.router)
+app.include_router(metrics.router)
+app.include_router(prometheus.router)
 app.include_router(resources.router)
 app.include_router(watch.router)

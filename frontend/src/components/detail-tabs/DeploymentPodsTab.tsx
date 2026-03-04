@@ -1,8 +1,10 @@
-import { memo, useMemo, useState, useRef, useEffect, useCallback } from 'react'
+import { memo, useMemo, useState, useEffect } from 'react'
+import { Link } from '@tanstack/react-router'
 import { useResourceList } from '#/hooks/use-resource-list'
 import { useResource } from '#/hooks/use-resource'
-import { useLogStream } from '#/hooks/use-log-stream'
+import { LogTerminalView } from '#/components/logs/LogTerminalView'
 import { getStatusClasses } from '#/lib/resource-helpers'
+import { TruncatedCell } from '#/components/ui/truncated-cell'
 import { relativeTime } from '#/lib/time'
 
 type DeploymentPodsTabProps = {
@@ -27,6 +29,11 @@ function getPodPhase(item: KubeItem): string {
 function getPodRestarts(item: KubeItem): number {
   const status = item.status as { containerStatuses?: Array<{ restartCount?: number }> } | undefined
   return (status?.containerStatuses ?? []).reduce((sum, cs) => sum + (cs.restartCount ?? 0), 0)
+}
+
+function getPodImages(item: KubeItem): string[] {
+  const spec = item.spec as { containers?: Array<{ image?: string }> } | undefined
+  return (spec?.containers ?? []).map(c => c.image ?? '').filter(Boolean)
 }
 
 function getContainerNames(resource: Record<string, unknown>): string[] {
@@ -78,6 +85,7 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
           <thead>
             <tr className="border-b border-border-light dark:border-border-dark">
               <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Name</th>
+              <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Image</th>
               <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Status</th>
               <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Restarts</th>
               <th className="px-5 py-3 text-[10px] text-slate-600 dark:text-slate-500 uppercase tracking-wider font-semibold">Age</th>
@@ -90,6 +98,7 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
               const spec = item.spec as { nodeName?: string } | undefined
               const phase = getPodPhase(item)
               const restarts = getPodRestarts(item)
+              const images = getPodImages(item)
               const classes = getStatusClasses(phase)
               const isSelected = meta?.name === selectedPod
 
@@ -100,11 +109,25 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
                   className={`cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-blue-500/10 hover:bg-blue-500/15'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
+                      : 'hover:bg-slate-50 dark:hover:bg-surface-hover/30'
                   }`}
                 >
-                  <td className="px-5 py-3">
-                    <span className="font-medium text-blue-400">{meta?.name}</span>
+                  <td className="px-5 py-3 max-w-[250px]">
+                    <TruncatedCell>
+                      <Link
+                        to="/resources/$"
+                        params={{ _splat: `v1/pods/${namespace}/${meta?.name}` }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="font-medium text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                      >
+                        {meta?.name}
+                      </Link>
+                    </TruncatedCell>
+                  </td>
+                  <td className="px-5 py-3 font-mono text-xs text-slate-600 dark:text-slate-400 max-w-[300px]">
+                    {images.map((img, i) => (
+                      <TruncatedCell key={i}>{img}</TruncatedCell>
+                    ))}
                   </td>
                   <td className="px-5 py-3">
                     <div className="flex items-center gap-2">
@@ -116,7 +139,9 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
                   <td className="px-5 py-3 font-mono text-xs">
                     {meta?.creationTimestamp ? relativeTime(meta.creationTimestamp) : '-'}
                   </td>
-                  <td className="px-5 py-3">{spec?.nodeName ?? '-'}</td>
+                  <td className="px-5 py-3 max-w-[250px]">
+                    <TruncatedCell>{spec?.nodeName ?? '-'}</TruncatedCell>
+                  </td>
                 </tr>
               )
             })}
@@ -158,6 +183,7 @@ const PodDetailPanel = memo(function PodDetailPanel({
   const pod = podData as Record<string, unknown> | undefined
   const containers = useMemo(() => pod ? getContainerNames(pod) : [], [pod])
   const [selectedContainer, setSelectedContainer] = useState('')
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     if (containers.length > 0 && !selectedContainer) {
@@ -213,7 +239,7 @@ const PodDetailPanel = memo(function PodDetailPanel({
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
         >
           <span className="material-symbols-outlined text-[18px]">close</span>
         </button>
@@ -222,7 +248,7 @@ const PodDetailPanel = memo(function PodDetailPanel({
       {isLoading ? (
         <div className="px-5 py-12 text-center text-sm text-slate-500">Loading pod details...</div>
       ) : (
-        <div className="flex divide-x divide-border-light dark:divide-border-dark" style={{ height: '500px' }}>
+        <div className="flex divide-x divide-border-light dark:divide-border-dark" style={{ height: expanded ? 'calc(100vh - 300px)' : '500px' }}>
           <div className="w-1/4 overflow-y-auto p-4 space-y-4">
             <DetailSection title="Info">
               <DetailRow label="Namespace" value={metadata?.namespace ?? '-'} />
@@ -259,7 +285,7 @@ const PodDetailPanel = memo(function PodDetailPanel({
               <DetailSection title="Labels">
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(metadata.labels).map(([k, v]) => (
-                    <span key={k} className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark text-slate-500 dark:text-slate-400 truncate max-w-full" title={`${k}=${v}`}>
+                    <span key={k} className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark text-slate-500 dark:text-slate-400 truncate max-w-full" title={`${k}=${v}`}>
                       {k.split('/').pop()}={v}
                     </span>
                   ))}
@@ -269,12 +295,14 @@ const PodDetailPanel = memo(function PodDetailPanel({
           </div>
 
           <div className="w-3/4 flex flex-col">
-            <PodLogViewer
+            <LogTerminalView
               namespace={namespace}
               podName={podName}
               containers={containers}
               selectedContainer={selectedContainer}
               onContainerChange={setSelectedContainer}
+              expanded={expanded}
+              onExpandToggle={() => setExpanded((v) => !v)}
             />
           </div>
         </div>
@@ -301,143 +329,3 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-type PodLogViewerProps = {
-  namespace: string
-  podName: string
-  containers: string[]
-  selectedContainer: string
-  onContainerChange: (container: string) => void
-}
-
-const PodLogViewer = memo(function PodLogViewer({
-  namespace,
-  podName,
-  containers,
-  selectedContainer,
-  onContainerChange,
-}: PodLogViewerProps) {
-  const [follow, setFollow] = useState(true)
-  const [filterText, setFilterText] = useState('')
-  const scrollRef = useRef<HTMLDivElement>(null)
-
-  const { lines, connected, error, clear } = useLogStream(
-    {
-      namespace,
-      pod: podName,
-      container: selectedContainer || undefined,
-      tailLines: 500,
-      follow,
-    },
-    !!selectedContainer,
-  )
-
-  const filteredLines = filterText
-    ? lines.filter((l) => l.toLowerCase().includes(filterText.toLowerCase()))
-    : lines
-
-  useEffect(() => {
-    if (follow && scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
-    }
-  }, [filteredLines.length, follow])
-
-  const handleWheel = useCallback(() => {
-    if (!scrollRef.current || !follow) return
-    setTimeout(() => {
-      if (!scrollRef.current) return
-      const { scrollTop, scrollHeight, clientHeight } = scrollRef.current
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50
-      if (!isAtBottom) setFollow(false)
-    }, 0)
-  }, [follow])
-
-  return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-border-light dark:border-border-dark">
-        <span className="material-symbols-outlined text-[16px] text-slate-500 dark:text-slate-400">terminal</span>
-        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Logs</span>
-
-        {containers.length > 1 && (
-          <select
-            value={selectedContainer}
-            onChange={(e) => onContainerChange(e.target.value)}
-            className="ml-2 px-2 py-1 rounded border border-border-light dark:border-border-dark bg-surface-light dark:bg-background-dark text-xs text-slate-700 dark:text-slate-300"
-          >
-            {containers.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        )}
-        {containers.length === 1 && (
-          <span className="text-xs text-slate-500 ml-2">{selectedContainer}</span>
-        )}
-
-        <div className="relative flex-1 max-w-[200px] ml-auto">
-          <span className="absolute left-2 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px] text-slate-500">search</span>
-          <input
-            type="text"
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            placeholder="Filter..."
-            className="w-full pl-7 pr-3 py-1 bg-slate-50 dark:bg-background-dark border border-border-light dark:border-border-dark rounded text-xs text-slate-700 dark:text-slate-300 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none"
-          />
-        </div>
-
-        <div className="flex items-center gap-1">
-          <span className={`h-1.5 w-1.5 rounded-full ${connected ? 'bg-emerald-500' : 'bg-slate-500'}`} />
-          <button
-            onClick={() => setFollow(!follow)}
-            className={`p-1 rounded transition-colors ${follow ? 'text-blue-400 bg-blue-500/10' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
-            title={follow ? 'Following' : 'Follow'}
-          >
-            <span className="material-symbols-outlined text-[14px]">vertical_align_bottom</span>
-          </button>
-          <button
-            onClick={clear}
-            className="p-1 rounded text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-            title="Clear"
-          >
-            <span className="material-symbols-outlined text-[14px]">delete</span>
-          </button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="px-4 py-2 text-xs text-red-400 bg-red-500/10 border-b border-border-light dark:border-border-dark">{error}</div>
-      )}
-
-      <div
-        ref={scrollRef}
-        onWheel={handleWheel}
-        className="flex-1 overflow-auto bg-white dark:bg-slate-950 font-mono text-xs p-2"
-      >
-        {filteredLines.length === 0 && !error && (
-          <div className="flex items-center justify-center h-full text-slate-600 text-xs">
-            {connected ? 'Waiting for log output...' : 'No logs available'}
-          </div>
-        )}
-        {filteredLines.map((line, i) => (
-          <LogLine key={i} line={line} lineNumber={i + 1} />
-        ))}
-      </div>
-    </div>
-  )
-})
-
-function LogLine({ line, lineNumber }: { line: string; lineNumber: number }) {
-  const upper = line.toUpperCase()
-  const isError = upper.includes('ERROR') || upper.includes('FATAL') || upper.includes('PANIC')
-  const isWarn = upper.includes('WARN')
-  const colorClass = isError ? 'text-red-400' : isWarn ? 'text-yellow-400' : 'text-slate-700 dark:text-slate-300'
-
-  return (
-    <div className="flex hover:bg-slate-50 dark:hover:bg-slate-800/50 group">
-      <span className="shrink-0 w-10 text-right pr-2 text-slate-400 dark:text-slate-600 select-none leading-5 group-hover:text-slate-500">
-        {lineNumber}
-      </span>
-      <span className={`flex-1 whitespace-pre-wrap break-all leading-5 ${colorClass}`}>
-        {line}
-      </span>
-    </div>
-  )
-}

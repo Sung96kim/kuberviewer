@@ -60,3 +60,13 @@ class ApplyResourceRequest(CamelModel):
     namespace: str | None = None
     resource_name: str | None = None
     body: dict
+
+
+class ScaleResourceRequest(CamelModel):
+    group: str
+    version: str
+    name: str
+    namespaced: bool
+    namespace: str | None = None
+    resource_name: str | None = None
+    replicas: int

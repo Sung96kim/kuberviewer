@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { useResource } from '#/hooks/use-resource'
@@ -17,7 +17,6 @@ import { CronJobHeader } from '#/components/detail-tabs/CronJobHeader'
 import { SecretDataTab } from '#/components/detail-tabs/SecretDataTab'
 import { useTerminal } from '#/components/terminal/TerminalProvider'
 import { PodContainersSection } from '#/components/detail-tabs/PodContainersSection'
-import { PodEventsSection } from '#/components/detail-tabs/PodEventsSection'
 import { EndpointsSubsetsSection } from '#/components/detail-tabs/EndpointsSubsetsSection'
 import { IngressRulesSection } from '#/components/detail-tabs/IngressRulesSection'
 import { NetworkPolicySection } from '#/components/detail-tabs/NetworkPolicySection'
@@ -32,6 +31,7 @@ import { StatefulSetSection } from '#/components/detail-tabs/StatefulSetSection'
 import { JobSection } from '#/components/detail-tabs/JobSection'
 import { ConfigMapSection } from '#/components/detail-tabs/ConfigMapSection'
 import { ResourceEventsTab } from '#/components/detail-tabs/ResourceEventsTab'
+import { PodInfoSection } from '#/components/detail-tabs/PodInfoSection'
 
 type ResourceDetailProps = {
   group: string
@@ -98,7 +98,7 @@ function MetadataRow({ label, value }: { label: string; value: string }) {
 
 function ConditionRow({ condition }: { condition: { type: string; status: string; reason?: string; message?: string; lastTransitionTime?: string } }) {
   const isTrue = condition.status === 'True'
-  const iconBg = isTrue ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'
+  const iconBg = isTrue ? 'bg-emerald-500/10 text-emerald-500' : 'bg-slate-100 dark:bg-surface-highlight text-slate-400'
   const icon = isTrue ? 'check_circle' : 'cancel'
 
   return (
@@ -194,6 +194,10 @@ function getOwnerInfo(resource: KubeResource): { kind: string; name: string; spl
 
 export function ResourceDetail({ group, version, resourceType, name, namespaced, namespace }: ResourceDetailProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview')
+
+  useEffect(() => {
+    setActiveTab('overview')
+  }, [group, version, resourceType, name])
   const { openSession } = useTerminal()
 
   const handleOpenTerminal = useCallback((container?: string) => {
@@ -300,9 +304,9 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
         : 'Failed to Load Resource'
 
     const description = isNotFound
-      ? <>The <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-sm font-mono text-slate-700 dark:text-slate-300 border border-border-light dark:border-border-dark">{kindLabel}/{name}</code> could not be found in the current namespace.</>
+      ? <>The <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-surface-highlight text-sm font-mono text-slate-700 dark:text-slate-300 border border-border-light dark:border-border-dark">{kindLabel}/{name}</code> could not be found in the current namespace.</>
       : isForbidden
-        ? <>You do not have permission to access <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-sm font-mono text-slate-700 dark:text-slate-300 border border-border-light dark:border-border-dark">{kindLabel}/{name}</code>.</>
+        ? <>You do not have permission to access <code className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-surface-highlight text-sm font-mono text-slate-700 dark:text-slate-300 border border-border-light dark:border-border-dark">{kindLabel}/{name}</code>.</>
         : <>{isApiError ? error.detail : (error as Error).message}</>
 
     const infoTitle = isNotFound
@@ -374,7 +378,7 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={() => window.history.back()}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark text-sm font-medium hover:bg-slate-50 dark:hover:bg-surface-hover transition-colors"
             >
               <span className="material-symbols-outlined text-[18px]">arrow_back</span>
               Back to Workloads
@@ -475,14 +479,16 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
         />
       ) : (
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h1 className="text-2xl font-bold">{metadata?.name ?? name}</h1>
-            {phase && <StatusBadge phase={phase} />}
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold">{metadata?.name ?? name}</h1>
+              {phase && <StatusBadge phase={phase} />}
+            </div>
             {isPod && phase === 'Running' && (
-              <>
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => handleOpenTerminal(containerNames.find((c) => !c.startsWith('init-')))}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-surface-hover transition-colors text-sm"
                   title="Open terminal"
                 >
                   <span className="material-symbols-outlined text-[16px]">terminal</span>
@@ -499,13 +505,13 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
                   </span>
                   {rollPod.isPending ? 'Restarting...' : 'Restart Pod'}
                 </button>
-              </>
+              </div>
             )}
             {isJob && namespace && (
               <button
                 onClick={() => retriggerJob.mutate()}
                 disabled={retriggerJob.isPending}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-surface-hover transition-colors text-sm font-medium disabled:opacity-50"
                 title="Create a new Job with the same spec"
               >
                 <span className="material-symbols-outlined text-[16px]">
@@ -517,10 +523,15 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
           </div>
           <div className="flex items-center gap-4 text-sm text-slate-500 dark:text-slate-400">
             {metadata?.namespace && (
-              <span className="flex items-center gap-1.5">
+              <Link
+                to="/namespaces/$name"
+                params={{ name: metadata.namespace }}
+                className="flex items-center gap-1.5 hover:text-primary transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
                 <span className="material-symbols-outlined text-[18px]">folder_open</span>
-                Namespace: <span className="text-slate-700 dark:text-slate-300">{metadata.namespace}</span>
-              </span>
+                Namespace: <span className="text-primary font-medium">{metadata.namespace}</span>
+              </Link>
             )}
             {ownerInfo && (
               <Link
@@ -612,6 +623,18 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
             </>
           ) : (
             <>
+              {isPod && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <PodContainersSection
+                    containerStatuses={podContainerStatuses}
+                    initContainerStatuses={podInitContainerStatuses}
+                    isLoading={false}
+                    onOpenTerminal={handleOpenTerminal}
+                  />
+                  <PodInfoSection resource={resource as Record<string, unknown>} />
+                </div>
+              )}
+
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <MetadataCard metadata={metadata} />
@@ -623,20 +646,6 @@ export function ResourceDetail({ group, version, resourceType, name, namespaced,
                 </div>
               </div>
 
-              {isPod && (
-                <PodContainersSection
-                  containerStatuses={podContainerStatuses}
-                  initContainerStatuses={podInitContainerStatuses}
-                  isLoading={false}
-                />
-              )}
-
-              {isPod && namespace && (
-                <PodEventsSection
-                  namespace={namespace}
-                  podName={metadata?.name ?? name}
-                />
-              )}
             </>
           )}
         </div>
@@ -744,7 +753,7 @@ function LabelsCard({ labels }: { labels: Record<string, string> }) {
       </div>
       <div className="p-4 flex flex-wrap gap-2">
         {Object.entries(labels).map(([k, v]) => (
-          <div key={k} className="flex h-7 items-center gap-1.5 rounded bg-slate-100 dark:bg-slate-800 px-2.5 border border-border-light dark:border-border-dark">
+          <div key={k} className="flex h-7 items-center gap-1.5 rounded bg-slate-100 dark:bg-surface-highlight px-2.5 border border-border-light dark:border-border-dark">
             <span className="material-symbols-outlined text-[14px] text-slate-500 dark:text-slate-400">label</span>
             <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{k}={v}</span>
           </div>

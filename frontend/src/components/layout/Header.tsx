@@ -1,7 +1,13 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
+import { NotificationCenter } from '#/components/layout/NotificationCenter'
+import { SettingsPopover } from '#/components/layout/SettingsPopover'
+import { Skeleton } from '#/components/ui/skeleton'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { useContexts, useSwitchContext } from '#/hooks/use-contexts'
-import { useTheme } from '#/hooks/use-theme'
+import { usePollingInterval } from '#/hooks/use-polling'
+import { useSettings } from '#/hooks/use-settings'
+import { api } from '#/api'
 import {
   Popover,
   PopoverContent,
@@ -16,17 +22,100 @@ import {
   CommandList,
 } from '#/components/ui/command'
 
+const STATUS_COLORS = {
+  ok: 'text-emerald-500',
+  warn: 'text-yellow-500',
+  error: 'text-red-500',
+} as const
+
+const STATUS_BG = {
+  ok: 'bg-emerald-500',
+  warn: 'bg-yellow-500',
+  error: 'bg-red-500',
+} as const
+
+function HealthStat({ icon, label, value, status, children }: {
+  icon: string
+  label: string
+  value: string
+  status?: 'ok' | 'warn' | 'error'
+  children?: ReactNode
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-100 dark:bg-surface-highlight/60 border border-slate-200 dark:border-border-dark/50 hover:bg-slate-200 dark:hover:bg-surface-hover/60 transition-colors cursor-pointer">
+          <span className={`material-symbols-outlined text-[14px] ${status ? STATUS_COLORS[status] : 'text-slate-400'}`}>{icon}</span>
+          <span className="text-xs font-semibold text-slate-900 dark:text-white">{value}</span>
+          <span className="text-[10px] text-slate-500">{label}</span>
+        </button>
+      </PopoverTrigger>
+      {children && (
+        <PopoverContent align="center" className="w-56 p-3">
+          {children}
+        </PopoverContent>
+      )}
+    </Popover>
+  )
+}
+
+function DetailRow({ label, value, status }: { label: string; value: string | number; status?: 'ok' | 'warn' | 'error' }) {
+  return (
+    <div className="flex items-center justify-between py-1">
+      <span className="text-xs text-slate-500">{label}</span>
+      <div className="flex items-center gap-1.5">
+        {status && <span className={`inline-block h-1.5 w-1.5 rounded-full ${STATUS_BG[status]}`} />}
+        <span className="text-xs font-semibold text-slate-900 dark:text-white">{value}</span>
+      </div>
+    </div>
+  )
+}
+
+function DetailLink({ to, params, label }: { to: string; params?: Record<string, string>; label: string }) {
+  return (
+    <Link
+      to={to}
+      params={params}
+      className="flex items-center gap-1 mt-2 pt-2 border-t border-slate-200 dark:border-border-dark text-xs text-primary hover:text-primary/80 transition-colors"
+    >
+      {label}
+      <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+    </Link>
+  )
+}
+
 export function Header() {
   const navigate = useNavigate()
   const { data: contextData } = useContexts()
   const switchContext = useSwitchContext()
-  const { theme, toggleTheme } = useTheme()
+  const { settings } = useSettings()
+  const compact = settings.compactMode
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.altKey && e.key === 'd') {
+        e.preventDefault()
+        searchInputRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', handler)
+    return () => document.removeEventListener('keydown', handler)
+  }, [])
 
   const currentContext = contextData?.current
   const contexts = contextData?.contexts ?? []
+
+  const healthInterval = usePollingInterval(60_000)
+  const { data: health, isLoading: healthLoading } = useQuery({
+    queryKey: ['cluster-health'],
+    queryFn: () => api.clusterHealth(),
+    staleTime: 60_000,
+    refetchInterval: healthInterval,
+  })
 
   const handleSearch = useCallback((e: React.FormEvent) => {
     e.preventDefault()
@@ -36,7 +125,7 @@ export function Header() {
   }, [searchValue, navigate])
 
   return (
-    <header className="h-16 flex items-center border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-6 shrink-0 z-20">
+    <header className={`${compact ? 'h-12 px-4' : 'h-16 px-6'} flex items-center border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shrink-0 z-20`}>
       <div className="flex items-center gap-4 shrink-0">
         <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="size-8 text-blue-500 flex items-center justify-center">
@@ -45,17 +134,6 @@ export function Header() {
           <h1 className="text-xl font-bold tracking-tight font-display">KuberViewer</h1>
         </Link>
 
-        {currentContext && (
-          <div className="hidden md:flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
-            <span className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-            </span>
-            <span className="text-xs font-medium text-emerald-400">
-              Connected to {currentContext}
-            </span>
-          </div>
-        )}
       </div>
 
       <div className="flex-1 flex justify-center px-8">
@@ -65,12 +143,18 @@ export function Header() {
               search
             </span>
             <input
+              ref={searchInputRef}
               type="text"
               value={searchValue}
               onChange={(e) => setSearchValue(e.target.value)}
               placeholder="Search pods, services, deployments..."
               className="w-full pl-10 pr-10 py-2 bg-background-light dark:bg-background-dark border border-border-light dark:border-border-dark rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:ring-1 focus:ring-primary focus:border-primary focus:outline-none transition-colors"
             />
+            {!searchValue && (
+              <kbd className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-slate-500 font-mono border border-border-light dark:border-border-dark rounded px-1.5 py-0.5 pointer-events-none">
+                Alt+D
+              </kbd>
+            )}
             {searchValue && (
               <button
                 type="button"
@@ -85,9 +169,68 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-4 shrink-0">
+        <div className="hidden lg:flex items-center gap-2">
+          {healthLoading && (
+            <>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-24 rounded-md" />
+              ))}
+            </>
+          )}
+          {health && (
+            <>
+              <HealthStat
+                icon="dns"
+                label="Nodes"
+                value={`${health.nodes.ready}/${health.nodes.total}`}
+                status={health.nodes.ready === health.nodes.total ? 'ok' : 'warn'}
+              >
+                <DetailRow label="Ready" value={health.nodes.ready} status="ok" />
+                <DetailRow label="Not Ready" value={health.nodes.total - health.nodes.ready} status={health.nodes.total - health.nodes.ready > 0 ? 'error' : 'ok'} />
+                <DetailRow label="Total" value={health.nodes.total} />
+                <DetailLink to="/nodes" label="View all nodes" />
+              </HealthStat>
+              <HealthStat
+                icon="layers"
+                label="Deploys"
+                value={`${health.deployments.ready}/${health.deployments.total}`}
+                status={health.deployments.ready === health.deployments.total ? 'ok' : 'warn'}
+              >
+                <DetailRow label="Ready" value={health.deployments.ready} status="ok" />
+                <DetailRow label="Not Ready" value={health.deployments.total - health.deployments.ready} status={health.deployments.total - health.deployments.ready > 0 ? 'warn' : 'ok'} />
+                <DetailRow label="Total" value={health.deployments.total} />
+                <DetailLink to="/resources/$" params={{ _splat: 'apps/v1/deployments' }} label="View all deployments" />
+              </HealthStat>
+              <HealthStat
+                icon="deployed_code"
+                label="Pods"
+                value={`${health.pods.running}/${health.pods.total}`}
+                status={health.pods.failed > 0 || Object.values(health.pods.issues).some(v => v > 0) ? 'error' : health.pods.pending > 0 ? 'warn' : 'ok'}
+              >
+                <DetailRow label="Running" value={health.pods.running} status="ok" />
+                <DetailRow label="Pending" value={health.pods.pending} status={health.pods.pending > 0 ? 'warn' : 'ok'} />
+                <DetailRow label="Failed" value={health.pods.failed} status={health.pods.failed > 0 ? 'error' : 'ok'} />
+                {Object.entries(health.pods.issues).map(([reason, count]) => (
+                  <DetailRow key={reason} label={reason} value={count} status={count > 0 ? 'error' : 'ok'} />
+                ))}
+                <DetailRow label="Total" value={health.pods.total} />
+                <DetailLink to="/resources/$" params={{ _splat: 'v1/pods' }} label="View all pods" />
+              </HealthStat>
+              <HealthStat icon="folder" label="NS" value={String(health.namespaces)}>
+                <DetailRow label="Total" value={health.namespaces} />
+                <DetailLink to="/namespaces" label="View all namespaces" />
+              </HealthStat>
+              <HealthStat icon="lan" label="Svcs" value={String(health.services)}>
+                <DetailRow label="Total" value={health.services} />
+                <DetailLink to="/resources/$" params={{ _splat: 'v1/services' }} label="View all services" />
+              </HealthStat>
+            </>
+          )}
+        </div>
+
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <button className="hidden sm:flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors min-w-[180px]">
+            <button className="hidden sm:flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-surface-hover transition-colors min-w-[180px]">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[20px]">dns</span>
                 <span className="text-sm font-medium">{currentContext ?? 'No context'}</span>
@@ -132,18 +275,8 @@ export function Header() {
         </Popover>
 
         <div className="flex items-center gap-2">
-          <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            <span className="material-symbols-outlined">
-              {theme === 'dark' ? 'light_mode' : 'dark_mode'}
-            </span>
-          </button>
+          <NotificationCenter />
+          <SettingsPopover />
         </div>
 
         <div className="h-9 w-9 rounded-full bg-linear-to-tr from-primary to-purple-500 p-[2px] cursor-pointer">

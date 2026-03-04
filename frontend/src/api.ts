@@ -2,6 +2,7 @@ import type { ContextInfo, ResourceDefinition, ResourceGroup } from '#/types'
 
 const BASE_URL = '/api'
 const REQUEST_TIMEOUT_MS = 30_000
+let _loginWindowOpened = 0
 
 export class ApiError extends Error {
   status: number
@@ -51,7 +52,11 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
         try {
           const parsed = JSON.parse(text)
           if (parsed.error === 'oidc_auth_required' && parsed.login_url) {
-            window.open(parsed.login_url, '_blank')
+            const now = Date.now()
+            if (now - _loginWindowOpened > 5_000) {
+              _loginWindowOpened = now
+              window.open(parsed.login_url, '_blank')
+            }
           }
         } catch {
           // not JSON
@@ -81,7 +86,53 @@ function toQueryString(params: Record<string, string | number | boolean | undefi
 
 export type ClusterHealthResponse = {
   nodes: { total: number; ready: number }
-  pods: { total: number; running: number }
+  pods: { total: number; running: number; failed: number; pending: number; issues: Record<string, number> }
+  deployments: { total: number; ready: number }
+  namespaces: number
+  services: number
+}
+
+export type NodeMetricItem = {
+  metadata: { name: string }
+  usage: { cpu: string; memory: string }
+}
+
+export type PodMetricItem = {
+  metadata: { name: string; namespace: string }
+  containers: Array<{
+    name: string
+    usage: { cpu: string; memory: string }
+  }>
+}
+
+export type MetricsResponse<T> = {
+  available: boolean
+  items?: T[]
+}
+
+export type SingleNodeMetricsResponse = {
+  available: boolean
+  usage?: { cpu: string; memory: string }
+}
+
+export type PrometheusStatusResponse = {
+  available: boolean
+  url?: string
+  error?: string
+}
+
+export type PrometheusMetric = {
+  metric: Record<string, string>
+  values?: [number, string][]
+  value?: [number, string]
+}
+
+export type PrometheusQueryResponse = {
+  status: string
+  data: {
+    resultType: string
+    result: PrometheusMetric[]
+  }
 }
 
 export const api = {
@@ -155,6 +206,17 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
+  nodeMetrics: () =>
+    request<MetricsResponse<NodeMetricItem>>('/metrics/nodes'),
+
+  nodeMetricsByName: (name: string) =>
+    request<SingleNodeMetricsResponse>(`/metrics/nodes/${encodeURIComponent(name)}`),
+
+  podMetrics: (namespace?: string) => {
+    const qs = namespace ? `?namespace=${encodeURIComponent(namespace)}` : ''
+    return request<MetricsResponse<PodMetricItem>>(`/metrics/pods${qs}`)
+  },
+
   patchResource: (body: {
     group: string
     version: string
@@ -167,5 +229,39 @@ export const api = {
     request<Record<string, unknown>>('/resources/patch', {
       method: 'POST',
       body: JSON.stringify(body),
+    }),
+
+  scaleResource: (body: {
+    group: string
+    version: string
+    name: string
+    namespaced: boolean
+    namespace?: string
+    resourceName?: string
+    replicas: number
+  }) =>
+    request<Record<string, unknown>>('/resources/scale', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  prometheusStatus: () =>
+    request<PrometheusStatusResponse>('/prometheus/status'),
+
+  prometheusQueryRange: (params: {
+    query: string
+    start: number
+    end: number
+    step?: string
+  }) =>
+    request<PrometheusQueryResponse>('/prometheus/query_range', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    }),
+
+  prometheusQuery: (params: { query: string }) =>
+    request<PrometheusQueryResponse>('/prometheus/query', {
+      method: 'POST',
+      body: JSON.stringify(params),
     }),
 }

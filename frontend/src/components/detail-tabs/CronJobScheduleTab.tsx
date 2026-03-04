@@ -118,8 +118,8 @@ export const CronJobScheduleTab = memo(function CronJobScheduleTab({
               onClick={() => { setFilter(s); setPage(0) }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                 filter === s
-                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white'
-                  : 'bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                  ? 'bg-slate-200 dark:bg-surface-hover text-slate-900 dark:text-white'
+                  : 'bg-slate-50 dark:bg-surface-highlight/50 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
               }`}
             >
               {s === 'all' ? 'All' : s}
@@ -158,7 +158,7 @@ export const CronJobScheduleTab = memo(function CronJobScheduleTab({
               </thead>
               <tbody className="divide-y divide-border-light dark:divide-border-dark">
                 {paged.map((job) => (
-                  <tr key={job.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                  <tr key={job.name} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                     <td className="px-5 py-3">
                       <span className="font-medium text-blue-400 hover:text-blue-300 cursor-pointer">{job.name}</span>
                     </td>
@@ -171,7 +171,7 @@ export const CronJobScheduleTab = memo(function CronJobScheduleTab({
                     <td className="px-5 py-3 font-mono text-xs text-slate-700 dark:text-slate-300">{job.duration}</td>
                     <td className="px-5 py-3 text-xs text-slate-500 dark:text-slate-400">{job.completed}</td>
                     <td className="px-5 py-3">
-                      <button className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
+                      <button className="p-1 rounded hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors">
                         <span className="material-symbols-outlined text-[16px]">more_vert</span>
                       </button>
                     </td>
@@ -189,7 +189,7 @@ export const CronJobScheduleTab = memo(function CronJobScheduleTab({
                   <button
                     onClick={() => setPage((p) => Math.max(0, p - 1))}
                     disabled={page === 0}
-                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
+                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 dark:text-slate-400 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
                   >
                     <span className="material-symbols-outlined text-[18px]">chevron_left</span>
                   </button>
@@ -198,7 +198,7 @@ export const CronJobScheduleTab = memo(function CronJobScheduleTab({
                       key={i}
                       onClick={() => setPage(i)}
                       className={`min-w-[28px] h-7 rounded text-xs font-medium transition-colors ${
-                        page === i ? 'bg-slate-200 dark:bg-slate-700 text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                        page === i ? 'bg-slate-200 dark:bg-surface-hover text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
                       }`}
                     >
                       {i + 1}
@@ -207,7 +207,7 @@ export const CronJobScheduleTab = memo(function CronJobScheduleTab({
                   <button
                     onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
                     disabled={page === totalPages - 1}
-                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
+                    className="p-1 rounded hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 dark:text-slate-400 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:cursor-not-allowed transition-colors"
                   >
                     <span className="material-symbols-outlined text-[18px]">chevron_right</span>
                   </button>

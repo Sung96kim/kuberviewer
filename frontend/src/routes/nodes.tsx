@@ -2,10 +2,15 @@ import { useState, useMemo } from 'react'
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { useNodeMetrics } from '#/hooks/use-metrics'
 import { relativeTime } from '#/lib/time'
+import { parseCpuToCores, parseMemoryToBytes, formatCpu, formatMemory, getUsageBarColor, getAllocatableBarColor } from '#/lib/resource-units'
 import { Skeleton } from '#/components/ui/skeleton'
+import { RefetchIndicator } from '#/components/ui/refetch-indicator'
+import { PollingSettings } from '#/components/ui/polling-settings'
 import { QueryError } from '#/components/QueryError'
 import { Breadcrumb } from '#/components/layout/Breadcrumb'
+import type { NodeMetricItem } from '#/api'
 
 export const Route = createFileRoute('/nodes')({ component: NodesPage })
 
@@ -34,12 +39,13 @@ type KubeListResponse = {
   items?: KubeNode[]
 }
 
-type ResourceValues = {
-  allocatable: number
-  capacity: number
+type ResourceBarData = {
+  used: number
+  total: number
   percentage: number
-  allocatableDisplay: string
-  capacityDisplay: string
+  usedDisplay: string
+  totalDisplay: string
+  mode: 'usage' | 'allocatable'
 }
 
 function getNodeStatus(node: KubeNode): string {
@@ -59,84 +65,76 @@ function getNodeRoles(node: KubeNode): string[] {
   return roles.length > 0 ? roles : ['worker']
 }
 
-function parseCpuValue(value: string): number {
-  if (value.endsWith('m')) {
-    return parseInt(value, 10) / 1000
-  }
-  if (value.endsWith('n')) {
-    return parseInt(value, 10) / 1_000_000_000
-  }
-  return parseFloat(value)
-}
+function getCpuBar(node: KubeNode, metricsUsage: { cpu: string; memory: string } | undefined): ResourceBarData | null {
+  const capacityRaw = node.status?.capacity?.cpu
+  if (!capacityRaw) return null
+  const capacityCores = parseCpuToCores(capacityRaw)
 
-function parseMemoryBytes(value: string): number {
-  const units: Record<string, number> = {
-    Ki: 1024,
-    Mi: 1024 ** 2,
-    Gi: 1024 ** 3,
-    Ti: 1024 ** 4,
-    K: 1000,
-    M: 1000 ** 2,
-    G: 1000 ** 3,
-    T: 1000 ** 4,
-  }
-  for (const [suffix, multiplier] of Object.entries(units)) {
-    if (value.endsWith(suffix)) {
-      return parseFloat(value.replace(suffix, '')) * multiplier
+  if (metricsUsage) {
+    const usedCores = parseCpuToCores(metricsUsage.cpu)
+    const percentage = capacityCores > 0 ? Math.round((usedCores / capacityCores) * 100) : 0
+    return {
+      used: usedCores,
+      total: capacityCores,
+      percentage,
+      usedDisplay: formatCpu(usedCores * 1000),
+      totalDisplay: `${capacityCores} Cores`,
+      mode: 'usage',
     }
   }
-  return parseFloat(value)
-}
 
-function formatMemoryGi(bytes: number): string {
-  const gi = bytes / (1024 ** 3)
-  return gi >= 1 ? `${gi.toFixed(1)} GiB` : `${(bytes / (1024 ** 2)).toFixed(0)} MiB`
-}
-
-function getCpuValues(node: KubeNode): ResourceValues | null {
-  const capacityRaw = node.status?.capacity?.cpu
   const allocatableRaw = node.status?.allocatable?.cpu
-  if (!capacityRaw || !allocatableRaw) return null
-  const capacity = parseCpuValue(capacityRaw)
-  const allocatable = parseCpuValue(allocatableRaw)
-  const percentage = capacity > 0 ? Math.round((allocatable / capacity) * 100) : 0
+  if (!allocatableRaw) return null
+  const allocatableCores = parseCpuToCores(allocatableRaw)
+  const percentage = capacityCores > 0 ? Math.round((allocatableCores / capacityCores) * 100) : 0
   return {
-    allocatable,
-    capacity,
+    used: allocatableCores,
+    total: capacityCores,
     percentage,
-    allocatableDisplay: `${allocatable.toFixed(1)}`,
-    capacityDisplay: `${capacity} Cores`,
+    usedDisplay: `${allocatableCores.toFixed(1)}`,
+    totalDisplay: `${capacityCores} Cores`,
+    mode: 'allocatable',
   }
 }
 
-function getMemoryValues(node: KubeNode): ResourceValues | null {
+function getMemoryBar(node: KubeNode, metricsUsage: { cpu: string; memory: string } | undefined): ResourceBarData | null {
   const capacityRaw = node.status?.capacity?.memory
+  if (!capacityRaw) return null
+  const capacityBytes = parseMemoryToBytes(capacityRaw)
+
+  if (metricsUsage) {
+    const usedBytes = parseMemoryToBytes(metricsUsage.memory)
+    const percentage = capacityBytes > 0 ? Math.round((usedBytes / capacityBytes) * 100) : 0
+    return {
+      used: usedBytes,
+      total: capacityBytes,
+      percentage,
+      usedDisplay: formatMemory(usedBytes),
+      totalDisplay: formatMemory(capacityBytes),
+      mode: 'usage',
+    }
+  }
+
   const allocatableRaw = node.status?.allocatable?.memory
-  if (!capacityRaw || !allocatableRaw) return null
-  const capacity = parseMemoryBytes(capacityRaw)
-  const allocatable = parseMemoryBytes(allocatableRaw)
-  const percentage = capacity > 0 ? Math.round((allocatable / capacity) * 100) : 0
+  if (!allocatableRaw) return null
+  const allocatableBytes = parseMemoryToBytes(allocatableRaw)
+  const percentage = capacityBytes > 0 ? Math.round((allocatableBytes / capacityBytes) * 100) : 0
   return {
-    allocatable,
-    capacity,
+    used: allocatableBytes,
+    total: capacityBytes,
     percentage,
-    allocatableDisplay: formatMemoryGi(allocatable),
-    capacityDisplay: formatMemoryGi(capacity),
+    usedDisplay: formatMemory(allocatableBytes),
+    totalDisplay: formatMemory(capacityBytes),
+    mode: 'allocatable',
   }
 }
 
-function getBarColor(percentage: number): { bar: string; bg: string; text: string } {
-  if (percentage >= 80) return { bar: 'bg-emerald-500', bg: 'bg-emerald-500/10', text: 'text-emerald-500' }
-  if (percentage >= 50) return { bar: 'bg-amber-500', bg: 'bg-amber-500/10', text: 'text-amber-500' }
-  return { bar: 'bg-red-500', bg: 'bg-red-500/10', text: 'text-red-500' }
-}
-
-function ResourceBar({ values, icon }: { values: ResourceValues | null; icon: string }) {
+function ResourceBar({ values, icon }: { values: ResourceBarData | null; icon: string }) {
   if (!values) {
     return <span className="text-xs text-slate-400">-</span>
   }
 
-  const color = getBarColor(values.percentage)
+  const color = values.mode === 'usage' ? getUsageBarColor(values.percentage) : getAllocatableBarColor(values.percentage)
 
   return (
     <div className="min-w-[180px] space-y-1.5">
@@ -146,7 +144,7 @@ function ResourceBar({ values, icon }: { values: ResourceValues | null; icon: st
           <span className={`font-semibold ${color.text}`}>{values.percentage}%</span>
         </div>
         <span className="text-slate-500 dark:text-slate-400">
-          {values.allocatableDisplay} / {values.capacityDisplay}
+          {values.usedDisplay} / {values.totalDisplay}
         </span>
       </div>
       <div className={`h-2 rounded-full ${color.bg} overflow-hidden`}>
@@ -214,15 +212,26 @@ function NodesPage() {
   const [statusFilter, setStatusFilter] = useState<string>('All')
 
   const queryClient = useQueryClient()
-  const { data, isLoading, isError, error } = useResourceList({
+  const { data, isLoading, isError, error, isFetching } = useResourceList({
     group: '',
     version: 'v1',
     name: 'nodes',
     namespaced: false,
   })
+  const { data: metricsData, isFetching: metricsFetching } = useNodeMetrics()
 
   const listData = data as KubeListResponse | undefined
   const nodes: KubeNode[] = (listData?.items ?? []) as KubeNode[]
+
+  const metricsMap = useMemo(() => {
+    const map = new Map<string, NodeMetricItem['usage']>()
+    if (metricsData?.available && metricsData.items) {
+      for (const item of metricsData.items) {
+        map.set(item.metadata.name, item.usage)
+      }
+    }
+    return map
+  }, [metricsData])
 
   const allRoles = useMemo(() => {
     const roleSet = new Set<string>()
@@ -264,6 +273,7 @@ function NodesPage() {
             Manage and monitor the worker machines in your Kubernetes cluster.
           </p>
         </div>
+        <PollingSettings />
       </div>
 
       {isError && (
@@ -274,7 +284,7 @@ function NodesPage() {
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-3 py-2 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+          className="px-3 py-2 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
         >
           <option value="All">All Roles</option>
           {allRoles.map((role) => (
@@ -284,7 +294,7 @@ function NodesPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+          className="px-3 py-2 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
         >
           <option value="All">All Statuses</option>
           {allStatuses.map((s) => (
@@ -292,7 +302,8 @@ function NodesPage() {
           ))}
         </select>
         {!isLoading && (
-          <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto">
+          <span className="text-sm text-slate-500 dark:text-slate-400 ml-auto flex items-center gap-1.5">
+            <RefetchIndicator fetching={isFetching || metricsFetching} />
             {filteredNodes.length} node{filteredNodes.length !== 1 ? 's' : ''}
           </span>
         )}
@@ -301,13 +312,13 @@ function NodesPage() {
       {!isError && <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+            <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
               <tr>
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">Status</th>
                 <th className="px-6 py-4">Roles</th>
-                <th className="px-6 py-4">CPU (Alloc / Capacity)</th>
-                <th className="px-6 py-4">Memory (Alloc / Capacity)</th>
+                <th className="px-6 py-4">{metricsData?.available ? 'CPU (Usage / Capacity)' : 'CPU (Alloc / Capacity)'}</th>
+                <th className="px-6 py-4">{metricsData?.available ? 'Memory (Usage / Capacity)' : 'Memory (Alloc / Capacity)'}</th>
                 <th className="px-6 py-4">Version</th>
                 <th className="px-6 py-4">Age</th>
               </tr>
@@ -327,14 +338,15 @@ function NodesPage() {
                   const status = getNodeStatus(node)
                   const roles = getNodeRoles(node)
                   const version = node.status?.nodeInfo?.kubeletVersion ?? '-'
-                  const cpuValues = getCpuValues(node)
-                  const memoryValues = getMemoryValues(node)
+                  const nodeUsage = metricsMap.get(node.metadata.name)
+                  const cpuValues = getCpuBar(node, nodeUsage)
+                  const memoryValues = getMemoryBar(node, nodeUsage)
 
                   return (
-                    <tr key={node.metadata.name} className="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <tr key={node.metadata.name} className="group hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="p-1.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          <div className="p-1.5 rounded bg-slate-100 dark:bg-surface-highlight text-slate-500 dark:text-slate-400">
                             <span className="material-symbols-outlined text-[20px]">dns</span>
                           </div>
                           <Link

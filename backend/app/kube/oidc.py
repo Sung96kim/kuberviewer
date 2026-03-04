@@ -180,21 +180,21 @@ def exchange_auth_code(
     client_id: str,
     client_secret: str,
     code: str,
-    redirect_uri: str,
+    redirect_uri: str | None = None,
 ) -> tuple[str, str] | None:
     endpoints = get_oidc_endpoints(issuer_url)
     if not endpoints:
         return None
 
-    form_data = urllib.parse.urlencode(
-        {
-            "grant_type": "authorization_code",
-            "client_id": client_id,
-            "client_secret": client_secret,
-            "code": code,
-            "redirect_uri": redirect_uri,
-        }
-    ).encode()
+    form: dict[str, str] = {
+        "grant_type": "authorization_code",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "code": code,
+    }
+    if redirect_uri:
+        form["redirect_uri"] = redirect_uri
+    form_data = urllib.parse.urlencode(form).encode()
 
     req = urllib.request.Request(
         endpoints["token_endpoint"],

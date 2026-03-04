@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 from app.kube import resources as kube_resources
-from app.models import ApplyResourceRequest
+from app.models import ApplyResourceRequest, ScaleResourceRequest
 
 router = APIRouter(prefix="/api/resources", tags=["resources"])
 
@@ -105,6 +105,19 @@ async def patch_resource(req: ApplyResourceRequest) -> dict[str, Any]:
         name=req.name,
         namespaced=req.namespaced,
         body=req.body,
+        namespace=req.namespace,
+        resource_name=req.resource_name,
+    )
+
+
+@router.post("/scale")
+async def scale_resource(req: ScaleResourceRequest) -> dict[str, Any]:
+    return await kube_resources.scale_resource(
+        group=req.group,
+        version=req.version,
+        name=req.name,
+        namespaced=req.namespaced,
+        replicas=req.replicas,
         namespace=req.namespace,
         resource_name=req.resource_name,
     )

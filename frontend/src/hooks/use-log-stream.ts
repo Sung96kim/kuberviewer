@@ -104,6 +104,15 @@ export function useLogStream(params: LogStreamParams, enabled: boolean) {
         })
       }
 
+      es.addEventListener('error', ((event: MessageEvent) => {
+        if (event.data) {
+          setState((prev) => ({ ...prev, error: event.data, connected: false }))
+          es.close()
+          eventSourceRef.current = null
+          return
+        }
+      }) as EventListener)
+
       es.onerror = () => {
         es.close()
         eventSourceRef.current = null
