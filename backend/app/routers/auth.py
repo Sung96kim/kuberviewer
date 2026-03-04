@@ -2,10 +2,10 @@ import logging
 import secrets
 from urllib.parse import urlencode
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.kube.manager import KubeManager
+from app.kube.manager import KubeManager, get_kube_manager
 from app.kube.oidc import (
     _decode_jwt_payload,
     _find_cached_token,
@@ -24,8 +24,7 @@ _pending_states: dict[str, dict[str, str]] = {}
 
 
 @router.get("/status")
-async def auth_status() -> dict[str, bool]:
-    mgr = KubeManager.get_instance()
+async def auth_status(mgr: KubeManager = Depends(get_kube_manager)) -> dict[str, bool]:
     params = mgr.get_oidc_params()
     if not params:
         return {"oidc_configured": False, "authenticated": False}
@@ -45,8 +44,7 @@ async def auth_status() -> dict[str, bool]:
 
 
 @router.get("/login", response_model=None)
-async def login() -> RedirectResponse | HTMLResponse:
-    mgr = KubeManager.get_instance()
+async def login(mgr: KubeManager = Depends(get_kube_manager)) -> RedirectResponse | HTMLResponse:
     params = mgr.get_oidc_params()
     if not params:
         return HTMLResponse(
@@ -75,7 +73,8 @@ async def login() -> RedirectResponse | HTMLResponse:
 
 @router.get("/callback")
 async def callback(
-    code: str = Query(...), state: str = Query(...)
+    code: str = Query(...), state: str = Query(...),
+    mgr: KubeManager = Depends(get_kube_manager),
 ) -> HTMLResponse:
     params = _pending_states.pop(state, None)
     if not params:
@@ -94,7 +93,6 @@ async def callback(
     id_token, refresh_token = result
     store_tokens(params["issuer_url"], id_token, refresh_token)
 
-    mgr = KubeManager.get_instance()
     mgr.reset_client()
 
     return HTMLResponse(
