@@ -1,9 +1,9 @@
 import asyncio
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.kube.manager import KubeManager
+from app.kube.manager import KubeManager, get_kube_manager
 from app.kube.resources import _kube_request
 
 router = APIRouter(prefix="/api/cluster", tags=["cluster"])
@@ -100,8 +100,8 @@ def _count_services(api_client: Any) -> int:
 
 
 @router.get("/health")
-async def cluster_health() -> dict[str, Any]:
-    api_client = KubeManager.get_instance().get_api_client()
+async def cluster_health(mgr: KubeManager = Depends(get_kube_manager)) -> dict[str, Any]:
+    api_client = mgr.get_api_client()
     nodes, pods, deployments, namespaces, services = await asyncio.gather(
         asyncio.to_thread(_count_nodes, api_client),
         asyncio.to_thread(_count_pods, api_client),

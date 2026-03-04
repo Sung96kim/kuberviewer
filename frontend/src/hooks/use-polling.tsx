@@ -2,10 +2,10 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from '
 
 export type PollingSpeed = 'fast' | 'normal' | 'slow' | 'paused' | 'custom'
 
-const SPEED_MULTIPLIERS: Record<Exclude<PollingSpeed, 'custom'>, number | false> = {
-  fast: 0.5,
-  normal: 1,
-  slow: 3,
+const SPEED_INTERVALS: Record<Exclude<PollingSpeed, 'custom'>, number | false> = {
+  fast: 1_000,
+  normal: 5_000,
+  slow: 30_000,
   paused: false,
 }
 
@@ -65,10 +65,8 @@ export function usePollingSpeed() {
   return useContext(PollingContext)
 }
 
-export function usePollingInterval(baseMs: number): number | false {
+export function usePollingInterval(_baseMs?: number): number | false {
   const { speed, customIntervalMs } = useContext(PollingContext)
   if (speed === 'custom') return customIntervalMs
-  const multiplier = SPEED_MULTIPLIERS[speed]
-  if (multiplier === false) return false
-  return Math.round(baseMs * multiplier)
+  return SPEED_INTERVALS[speed]
 }

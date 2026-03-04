@@ -17,3 +17,25 @@ export function useSwitchContext() {
     },
   })
 }
+
+export function useDeleteContext() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, switchTo }: { name: string; switchTo?: string }) =>
+      api.deleteContext(name, switchTo),
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+    },
+  })
+}
+
+export function useBulkDeleteContexts() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ names, switchTo }: { names: string[]; switchTo?: string }) =>
+      api.bulkDeleteContexts(names, switchTo),
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+    },
+  })
+}

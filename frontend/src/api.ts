@@ -148,6 +148,18 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
 
+  deleteContext: (name: string, switchTo?: string) =>
+    request<{ deleted: string; current: string }>('/contexts/delete', {
+      method: 'POST',
+      body: JSON.stringify({ name, switchTo }),
+    }),
+
+  bulkDeleteContexts: (names: string[], switchTo?: string) =>
+    request<{ deleted: string[]; current: string }>('/contexts/bulk-delete', {
+      method: 'POST',
+      body: JSON.stringify({ names, switchTo }),
+    }),
+
   discoverResources: () =>
     request<{ resources: ResourceDefinition[]; groups: ResourceGroup[] }>(
       '/resources/discover',
