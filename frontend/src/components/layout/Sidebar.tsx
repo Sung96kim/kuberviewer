@@ -12,6 +12,7 @@ const CLUSTER_NAV = [
   { label: 'Namespaces', icon: 'folder', href: '/namespaces' },
   { label: 'Contexts', icon: 'swap_horiz', href: '/contexts' },
   { label: 'Logs', icon: 'article', href: '/logs' },
+  { label: 'Create', icon: 'add_circle', href: '/create' },
 ] as const
 
 const KIND_ICONS: Record<string, string> = {
