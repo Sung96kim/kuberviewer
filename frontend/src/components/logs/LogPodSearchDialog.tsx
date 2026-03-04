@@ -38,19 +38,15 @@ type LogPodSearchDialogProps = {
   onSelect: (pods: SelectedPod[]) => void
 }
 
+const PHASE_COLORS: Record<string, string> = {
+  Running: 'text-green-400',
+  Succeeded: 'text-blue-400',
+  Pending: 'text-yellow-400',
+  Failed: 'text-red-400',
+}
+
 function getPhaseColor(phase: string): string {
-  switch (phase) {
-    case 'Running':
-      return 'text-green-400'
-    case 'Succeeded':
-      return 'text-blue-400'
-    case 'Pending':
-      return 'text-yellow-400'
-    case 'Failed':
-      return 'text-red-400'
-    default:
-      return 'text-slate-400'
-  }
+  return PHASE_COLORS[phase] ?? 'text-slate-400'
 }
 
 function extractContainers(pod: PodItem): string[] {

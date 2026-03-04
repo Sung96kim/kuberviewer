@@ -30,6 +30,15 @@ class SwitchContextResponse(CamelModel):
     current: str
 
 
+class DeleteContextRequest(CamelModel):
+    switch_to: str | None = None
+
+
+class DeleteContextResponse(CamelModel):
+    deleted: str
+    current: str
+
+
 class ResourceDefinition(CamelModel):
     group: str
     version: str

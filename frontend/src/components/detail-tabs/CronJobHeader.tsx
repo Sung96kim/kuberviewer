@@ -132,20 +132,22 @@ function getRelativeDay(date: Date): string {
   return date.toLocaleDateString('en-US', { weekday: 'long' })
 }
 
+const CONCURRENCY_ICONS: Record<string, string> = {
+  Forbid: 'block',
+  Replace: 'swap_horiz',
+}
+
 function getConcurrencyIcon(policy: string): string {
-  switch (policy) {
-    case 'Forbid': return 'block'
-    case 'Replace': return 'swap_horiz'
-    default: return 'check_circle'
-  }
+  return CONCURRENCY_ICONS[policy] ?? 'check_circle'
+}
+
+const CONCURRENCY_DESCRIPTIONS: Record<string, string> = {
+  Forbid: 'Do not allow concurrent runs',
+  Replace: 'Replace currently running job',
 }
 
 function getConcurrencyDescription(policy: string): string {
-  switch (policy) {
-    case 'Forbid': return 'Do not allow concurrent runs'
-    case 'Replace': return 'Replace currently running job'
-    default: return 'Allow concurrent runs'
-  }
+  return CONCURRENCY_DESCRIPTIONS[policy] ?? 'Allow concurrent runs'
 }
 
 export const CronJobHeader = memo(function CronJobHeader({

@@ -17,3 +17,14 @@ export function useSwitchContext() {
     },
   })
 }
+
+export function useDeleteContext() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, switchTo }: { name: string; switchTo?: string }) =>
+      api.deleteContext(name, switchTo),
+    onSuccess: () => {
+      queryClient.invalidateQueries()
+    },
+  })
+}

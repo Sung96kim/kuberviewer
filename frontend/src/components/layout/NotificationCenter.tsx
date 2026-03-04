@@ -74,22 +74,19 @@ function getResourceLinkPath(kind: string, name: string, namespace?: string): st
     : `${groupVersion}/${mapping.resource}/${name}`
 }
 
+const REASON_COLORS: Record<string, string> = {
+  CrashLoopBackOff: 'bg-red-500',
+  OOMKilled: 'bg-red-500',
+  Failed: 'bg-red-500',
+  ImagePullBackOff: 'bg-amber-500',
+  ErrImagePull: 'bg-amber-500',
+  CreateContainerError: 'bg-amber-500',
+  RunContainerError: 'bg-amber-500',
+  Pending: 'bg-yellow-500',
+}
+
 function getReasonColor(reason: string): string {
-  switch (reason) {
-    case 'CrashLoopBackOff':
-    case 'OOMKilled':
-    case 'Failed':
-      return 'bg-red-500'
-    case 'ImagePullBackOff':
-    case 'ErrImagePull':
-    case 'CreateContainerError':
-    case 'RunContainerError':
-      return 'bg-amber-500'
-    case 'Pending':
-      return 'bg-yellow-500'
-    default:
-      return 'bg-slate-500'
-  }
+  return REASON_COLORS[reason] ?? 'bg-slate-500'
 }
 
 export function NotificationCenter() {

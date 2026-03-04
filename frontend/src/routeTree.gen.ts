@@ -15,6 +15,7 @@ import { Route as NamespacesRouteImport } from './routes/namespaces'
 import { Route as MetricsRouteImport } from './routes/metrics'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as EventsRouteImport } from './routes/events'
+import { Route as ContextsRouteImport } from './routes/contexts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ResourcesSplatRouteImport } from './routes/resources.$'
 import { Route as NodesNameRouteImport } from './routes/nodes_.$name'
@@ -50,6 +51,11 @@ const EventsRoute = EventsRouteImport.update({
   path: '/events',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ContextsRoute = ContextsRouteImport.update({
+  id: '/contexts',
+  path: '/contexts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -73,6 +79,7 @@ const NamespacesNameRoute = NamespacesNameRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/contexts': typeof ContextsRoute
   '/events': typeof EventsRoute
   '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
@@ -85,6 +92,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/contexts': typeof ContextsRoute
   '/events': typeof EventsRoute
   '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
@@ -98,6 +106,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/contexts': typeof ContextsRoute
   '/events': typeof EventsRoute
   '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
@@ -112,6 +121,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/contexts'
     | '/events'
     | '/logs'
     | '/metrics'
@@ -124,6 +134,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/contexts'
     | '/events'
     | '/logs'
     | '/metrics'
@@ -136,6 +147,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/contexts'
     | '/events'
     | '/logs'
     | '/metrics'
@@ -149,6 +161,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ContextsRoute: typeof ContextsRoute
   EventsRoute: typeof EventsRoute
   LogsRoute: typeof LogsRoute
   MetricsRoute: typeof MetricsRoute
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/contexts': {
+      id: '/contexts'
+      path: '/contexts'
+      fullPath: '/contexts'
+      preLoaderRoute: typeof ContextsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -237,6 +257,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ContextsRoute: ContextsRoute,
   EventsRoute: EventsRoute,
   LogsRoute: LogsRoute,
   MetricsRoute: MetricsRoute,

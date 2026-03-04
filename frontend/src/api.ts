@@ -148,6 +148,12 @@ export const api = {
       body: JSON.stringify({ name }),
     }),
 
+  deleteContext: (name: string, switchTo?: string) =>
+    request<{ deleted: string; current: string }>(`/contexts/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
+      body: switchTo ? JSON.stringify({ switchTo }) : undefined,
+    }),
+
   discoverResources: () =>
     request<{ resources: ResourceDefinition[]; groups: ResourceGroup[] }>(
       '/resources/discover',

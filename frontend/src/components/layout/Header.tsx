@@ -2,9 +2,10 @@ import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { NotificationCenter } from '#/components/layout/NotificationCenter'
 import { SettingsPopover } from '#/components/layout/SettingsPopover'
 import { Skeleton } from '#/components/ui/skeleton'
+import { Button } from '#/components/ui/button'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { useContexts, useSwitchContext } from '#/hooks/use-contexts'
+import { useContexts, useSwitchContext, useDeleteContext } from '#/hooks/use-contexts'
 import { usePollingInterval } from '#/hooks/use-polling'
 import { useSettings } from '#/hooks/use-settings'
 import { api } from '#/api'
@@ -21,6 +22,14 @@ import {
   CommandItem,
   CommandList,
 } from '#/components/ui/command'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '#/components/ui/dialog'
 
 const STATUS_COLORS = {
   ok: 'text-emerald-500',
@@ -88,10 +97,13 @@ export function Header() {
   const navigate = useNavigate()
   const { data: contextData } = useContexts()
   const switchContext = useSwitchContext()
+  const deleteContext = useDeleteContext()
   const { settings } = useSettings()
   const compact = settings.compactMode
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [switchTo, setSwitchTo] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
@@ -259,13 +271,29 @@ export function Header() {
                         switchContext.mutate(ctx.name)
                         setOpen(false)
                       }}
-                      className={ctx.name === currentContext ? 'bg-primary/10 text-primary' : ''}
+                      className={`group/ctx ${ctx.name === currentContext ? 'bg-primary/10 text-primary' : ''}`}
                     >
                       <span className="material-symbols-outlined text-[16px]">dns</span>
-                      <span className="truncate">{ctx.name}</span>
+                      <span className="truncate flex-1">{ctx.name}</span>
                       {ctx.name === currentContext && (
-                        <span className="material-symbols-outlined ml-auto text-[16px]">check</span>
+                        <span className="material-symbols-outlined text-[16px]">check</span>
                       )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setDeleteTarget(ctx.name)
+                          if (ctx.name === currentContext) {
+                            const other = contexts.find((c) => c.name !== ctx.name)
+                            setSwitchTo(other?.name ?? '')
+                          } else {
+                            setSwitchTo('')
+                          }
+                          setOpen(false)
+                        }}
+                        className="opacity-0 group-hover/ctx:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/30 transition-all ml-1"
+                      >
+                        <span className="material-symbols-outlined text-[14px] text-red-500">delete</span>
+                      </button>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -285,6 +313,49 @@ export function Header() {
           </div>
         </div>
       </div>
+
+      <Dialog open={deleteTarget !== null} onOpenChange={(v) => { if (!v) setDeleteTarget(null) }}>
+        <DialogContent showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>Delete context</DialogTitle>
+            <DialogDescription>
+              Remove <span className="font-semibold text-slate-900 dark:text-white">{deleteTarget}</span> from your kubeconfig? This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget === currentContext && (
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                This is your active context. Switch to:
+              </label>
+              <select
+                value={switchTo}
+                onChange={(e) => setSwitchTo(e.target.value)}
+                className="w-full rounded-md border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark text-sm px-3 py-2 text-slate-900 dark:text-white focus:ring-1 focus:ring-primary focus:outline-none"
+              >
+                {contexts.filter((c) => c.name !== deleteTarget).map((c) => (
+                  <option key={c.name} value={c.name} className="bg-popover text-popover-foreground">{c.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button
+              variant="destructive"
+              disabled={deleteTarget === currentContext && !switchTo}
+              onClick={() => {
+                if (!deleteTarget) return
+                deleteContext.mutate(
+                  { name: deleteTarget, switchTo: deleteTarget === currentContext ? switchTo : undefined },
+                  { onSuccess: () => setDeleteTarget(null) },
+                )
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   )
 }

@@ -161,6 +161,44 @@ class KubeManager:
     def set_context(self, name: str) -> None:
         self._load_contexts(context=name)
 
+    def delete_context(self, name: str, switch_to: str | None = None) -> None:
+        if name == self._current_context:
+            if not switch_to:
+                raise ValueError("Cannot delete the active context without specifying switch_to")
+            self._load_contexts(context=switch_to)
+
+        config_path = os.path.expanduser(
+            self._config_file or config.KUBE_CONFIG_DEFAULT_LOCATION
+        )
+        with open(config_path) as f:
+            raw = yaml.safe_load(f)
+
+        ctx_entry = next((c for c in raw.get("contexts", []) if c["name"] == name), None)
+        if not ctx_entry:
+            raise KeyError(f"Context '{name}' not found")
+
+        cluster_name = ctx_entry.get("context", {}).get("cluster")
+        user_name = ctx_entry.get("context", {}).get("user")
+
+        raw["contexts"] = [c for c in raw["contexts"] if c["name"] != name]
+
+        other_clusters = {c.get("context", {}).get("cluster") for c in raw["contexts"]}
+        other_users = {c.get("context", {}).get("user") for c in raw["contexts"]}
+
+        if cluster_name and cluster_name not in other_clusters:
+            raw["clusters"] = [c for c in raw.get("clusters", []) if c["name"] != cluster_name]
+
+        if user_name and user_name not in other_users:
+            raw["users"] = [u for u in raw.get("users", []) if u["name"] != user_name]
+
+        if raw.get("current-context") == name:
+            raw["current-context"] = switch_to or (raw["contexts"][0]["name"] if raw["contexts"] else "")
+
+        with open(config_path, "w") as f:
+            yaml.safe_dump(raw, f, default_flow_style=False)
+
+        self._load_contexts(context=self._current_context)
+
     def get_oidc_params(self) -> dict[str, str] | None:
         ctx_info = self._find_context_info(self._current_context)
         if not ctx_info:
