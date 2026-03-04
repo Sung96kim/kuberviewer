@@ -145,6 +145,7 @@ class KubeManager:
         return cls._instance
 
     def get_contexts(self) -> list[ContextInfo]:
+        self._reload_contexts()
         return [
             ContextInfo(
                 name=ctx["name"],
@@ -154,6 +155,19 @@ class KubeManager:
             )
             for ctx in self._contexts
         ]
+
+    def _reload_contexts(self) -> None:
+        settings = get_settings()
+        config_path = os.path.expanduser(
+            settings.kubeconfig_path or config.KUBE_CONFIG_DEFAULT_LOCATION
+        )
+        with open(config_path) as f:
+            raw = yaml.safe_load(f)
+        self._raw_config = raw
+        self._contexts = raw.get("contexts", [])
+        current = raw.get("current-context", "")
+        if current:
+            self._current_context = current
 
     def get_current_context(self) -> str:
         return self._current_context
