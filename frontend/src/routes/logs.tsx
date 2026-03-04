@@ -329,7 +329,6 @@ const HOTKEYS: { key: string; label: string }[] = [
   { key: 'F', label: 'Focus/unfocus panel' },
   { key: 'T / Ctrl+`', label: 'Toggle shell' },
   { key: 'Ctrl+F', label: 'Search logs' },
-  { key: 'C', label: 'Clear logs' },
   { key: 'X', label: 'Close panel' },
   { key: 'A', label: 'Add pods' },
   { key: '[ ]', label: 'Prev/next group' },
@@ -337,7 +336,6 @@ const HOTKEYS: { key: string; label: string }[] = [
   { key: 'W', label: 'Close group' },
   { key: 'R', label: 'Rename group' },
   { key: '1-9', label: 'Go to group' },
-  { key: 'Esc', label: 'Exit shell input' },
 ]
 
 type GroupTabProps = {
@@ -642,12 +640,6 @@ function LogsPage() {
       const el = e.target as HTMLElement
       const tag = el.tagName
 
-      if (e.key === 'Escape' && tag === 'TEXTAREA' && el.closest('[data-terminal="exec"]')) {
-        e.preventDefault()
-        el.blur()
-        return
-      }
-
       if (tag === 'INPUT' || tag === 'SELECT') return
       if (tag === 'TEXTAREA' && el.closest('[data-terminal="exec"]')) return
       if (el.getAttribute('contenteditable')) return
@@ -749,9 +741,6 @@ function LogsPage() {
       } else if (key === 't' || key === 'T') {
         e.preventDefault()
         panelRefs.current.get(activeId)?.toggleShell()
-      } else if (key === 'c' || key === 'C') {
-        e.preventDefault()
-        panelRefs.current.get(activeId)?.clear()
       } else if (key === 'x' || key === 'X') {
         e.preventDefault()
         removePanel(activeId)

@@ -6,6 +6,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import { useLogTerminal } from '#/hooks/use-log-terminal'
 import { useExecTerminal } from '#/hooks/use-exec-terminal'
 import { useTheme } from '#/hooks/use-theme'
+import { resolveShellToggle } from '#/lib/shell-toggle'
 import { Button } from '#/components/ui/button'
 
 const XTERM_DARK = {
@@ -251,18 +252,18 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
   useImperativeHandle(ref, () => ({
     clear: () => logTerminalRef.current?.clear(),
     toggleShell: () => {
-      if (!shellOpen) {
-        if (!execStarted) setExecStarted(true)
-        setShellOpen(true)
-        return
-      }
       const textarea = execTerminalRef.current?.textarea
-      if (textarea && document.activeElement !== textarea) {
-        textarea.focus()
-        return
+      const actions = resolveShellToggle({
+        shellOpen,
+        execStarted,
+        textareaFocused: !!(textarea && document.activeElement === textarea),
+      })
+      for (const action of actions) {
+        if (action.type === 'startExec') setExecStarted(true)
+        else if (action.type === 'open') setShellOpen(true)
+        else if (action.type === 'blur') textarea?.blur()
+        else if (action.type === 'close') setShellOpen(false)
       }
-      textarea?.blur()
-      setShellOpen(false)
     },
     openSearch,
   }), [shellOpen, execStarted, openSearch])
