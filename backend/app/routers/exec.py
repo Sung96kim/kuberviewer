@@ -25,7 +25,7 @@ async def exec_terminal(
     try:
         ws_client = await asyncio.to_thread(
             open_exec_stream, namespace, pod, container,
-            ["env", "TERM=xterm", "/bin/bash", "-l"],
+            ["env", "TERM=xterm", "/bin/bash"],
         )
     except Exception as e:
         await ws.send_text(json.dumps({"type": "error", "data": str(e)}))

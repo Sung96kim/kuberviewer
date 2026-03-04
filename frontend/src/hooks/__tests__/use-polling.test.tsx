@@ -59,33 +59,33 @@ describe('usePollingInterval', () => {
     localStorage.clear()
   })
 
-  it('returns base interval at normal speed (1x)', () => {
-    const { result } = renderHook(() => usePollingInterval(10_000), { wrapper })
-    expect(result.current).toBe(10_000)
-  })
-
-  it('returns halved interval at fast speed (0.5x)', () => {
-    localStorage.setItem('kuberviewer:polling-speed', 'fast')
-    const { result } = renderHook(() => usePollingInterval(10_000), { wrapper })
+  it('returns 5s at normal speed', () => {
+    const { result } = renderHook(() => usePollingInterval(), { wrapper })
     expect(result.current).toBe(5_000)
   })
 
-  it('returns tripled interval at slow speed (3x)', () => {
+  it('returns 1s at fast speed', () => {
+    localStorage.setItem('kuberviewer:polling-speed', 'fast')
+    const { result } = renderHook(() => usePollingInterval(), { wrapper })
+    expect(result.current).toBe(1_000)
+  })
+
+  it('returns 30s at slow speed', () => {
     localStorage.setItem('kuberviewer:polling-speed', 'slow')
-    const { result } = renderHook(() => usePollingInterval(10_000), { wrapper })
+    const { result } = renderHook(() => usePollingInterval(), { wrapper })
     expect(result.current).toBe(30_000)
   })
 
   it('returns false when paused', () => {
     localStorage.setItem('kuberviewer:polling-speed', 'paused')
-    const { result } = renderHook(() => usePollingInterval(10_000), { wrapper })
+    const { result } = renderHook(() => usePollingInterval(), { wrapper })
     expect(result.current).toBe(false)
   })
 
   it('returns custom interval when speed is custom', () => {
     localStorage.setItem('kuberviewer:polling-speed', 'custom')
     localStorage.setItem('kuberviewer:polling-custom-ms', '7000')
-    const { result } = renderHook(() => usePollingInterval(10_000), { wrapper })
+    const { result } = renderHook(() => usePollingInterval(), { wrapper })
     expect(result.current).toBe(7000)
   })
 })

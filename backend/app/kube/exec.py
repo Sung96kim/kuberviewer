@@ -24,7 +24,7 @@ def open_exec_stream(
     api_client = KubeManager.get_instance().get_api_client()
     core_v1 = client.CoreV1Api(api_client)
 
-    cmd = command or ["env", "TERM=xterm", "/bin/bash", "-l"]
+    cmd = command or ["env", "TERM=xterm", "/bin/bash"]
 
     ws_client: WSClient = stream(
         core_v1.connect_get_namespaced_pod_exec,
