@@ -51,12 +51,12 @@ function SelectorBadges({ selector }: { selector?: Selector }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {Object.entries(labels).map(([k, v]) => (
-        <span key={k} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-mono border border-border-light dark:border-border-dark">
+        <span key={k} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 dark:bg-surface-highlight text-xs font-mono border border-border-light dark:border-border-dark">
           {k}={v}
         </span>
       ))}
       {expressions.map((expr) => (
-        <span key={expr.key} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-mono border border-border-light dark:border-border-dark">
+        <span key={expr.key} className="inline-flex items-center px-2 py-0.5 rounded bg-slate-100 dark:bg-surface-highlight text-xs font-mono border border-border-light dark:border-border-dark">
           {expr.key} {expr.operator} {expr.values?.join(', ') ?? ''}
         </span>
       ))}
@@ -111,7 +111,7 @@ function PortsList({ ports }: { ports?: NetworkPolicyPort[] }) {
   return (
     <div className="flex flex-wrap gap-1.5">
       {ports.map((p, i) => (
-        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-xs font-mono border border-border-light dark:border-border-dark">
+        <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 dark:bg-surface-highlight text-xs font-mono border border-border-light dark:border-border-dark">
           {p.port ?? '*'}{p.endPort ? `-${p.endPort}` : ''}/{p.protocol ?? 'TCP'}
         </span>
       ))}
@@ -130,7 +130,7 @@ function RuleCard({ direction, peers, ports, index }: {
 
   return (
     <div className="px-6 py-4 flex items-start gap-4">
-      <div className={`p-1.5 rounded bg-slate-100 dark:bg-slate-800 ${color}`}>
+      <div className={`p-1.5 rounded bg-slate-100 dark:bg-surface-highlight ${color}`}>
         <span className="material-symbols-outlined text-[18px]">{icon}</span>
       </div>
       <div className="flex-1 min-w-0 space-y-3">
@@ -176,13 +176,13 @@ export const NetworkPolicySection = memo(function NetworkPolicySection({ resourc
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
           <span className="material-symbols-outlined text-[18px] text-primary">filter_alt</span>
           <span className="text-sm text-slate-500 dark:text-slate-400">Pod Selector:</span>
           <SelectorBadges selector={podSelector} />
         </div>
         {policyTypes.length > 0 && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
             <span className="material-symbols-outlined text-[18px] text-amber-500">policy</span>
             <span className="text-sm text-slate-500 dark:text-slate-400">Types:</span>
             <span className="text-sm font-medium text-slate-900 dark:text-white">{policyTypes.join(', ')}</span>

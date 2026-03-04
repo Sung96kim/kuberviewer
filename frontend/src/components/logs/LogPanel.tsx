@@ -5,7 +5,22 @@ import { SearchAddon } from '@xterm/addon-search'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { useLogTerminal } from '#/hooks/use-log-terminal'
 import { useExecTerminal } from '#/hooks/use-exec-terminal'
+import { useTheme } from '#/hooks/use-theme'
 import { Button } from '#/components/ui/button'
+
+const XTERM_DARK = {
+  background: '#0f172a', foreground: '#e2e8f0', cursor: '#818cf8',
+  selectionBackground: '#334155', black: '#1e293b', red: '#f87171',
+  green: '#4ade80', yellow: '#facc15', blue: '#60a5fa',
+  magenta: '#c084fc', cyan: '#22d3ee', white: '#f1f5f9',
+}
+
+const XTERM_LIGHT = {
+  background: '#f8fafc', foreground: '#334155', cursor: '#6366f1',
+  selectionBackground: '#bfdbfe', black: '#f1f5f9', red: '#dc2626',
+  green: '#16a34a', yellow: '#ca8a04', blue: '#2563eb',
+  magenta: '#9333ea', cyan: '#0891b2', white: '#1e293b',
+}
 
 export type LogPanelHandle = {
   clear: () => void
@@ -27,26 +42,13 @@ type LogPanelProps = {
   onActivate: (id: string) => void
 }
 
-function createTerminal(el: HTMLElement, interactive: boolean) {
+function createTerminal(el: HTMLElement, interactive: boolean, xtermTheme: typeof XTERM_DARK) {
   const terminal = new Terminal({
     cursorBlink: interactive,
     disableStdin: !interactive,
     fontSize: 13,
     fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-    theme: {
-      background: '#0f172a',
-      foreground: '#e2e8f0',
-      cursor: '#818cf8',
-      selectionBackground: '#334155',
-      black: '#1e293b',
-      red: '#f87171',
-      green: '#4ade80',
-      yellow: '#facc15',
-      blue: '#60a5fa',
-      magenta: '#c084fc',
-      cyan: '#22d3ee',
-      white: '#f1f5f9',
-    },
+    theme: xtermTheme,
     scrollback: 10000,
     convertEol: true,
   })
@@ -76,6 +78,8 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
   onFocus,
   onActivate,
 }, ref) {
+  const { theme } = useTheme()
+  const xtermTheme = theme === 'dark' ? XTERM_DARK : XTERM_LIGHT
   const panelRef = useRef<HTMLDivElement>(null)
   const logContainerRef = useRef<HTMLDivElement>(null)
   const execContainerRef = useRef<HTMLDivElement>(null)
@@ -102,7 +106,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
   useEffect(() => {
     if (!logContainerRef.current) return
 
-    const { terminal, fitAddon, searchAddon } = createTerminal(logContainerRef.current, false)
+    const { terminal, fitAddon, searchAddon } = createTerminal(logContainerRef.current, false, xtermTheme)
     logTerminalRef.current = terminal
     logFitRef.current = fitAddon
     logSearchRef.current = searchAddon
@@ -132,7 +136,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
   useEffect(() => {
     if (!execStarted || !execContainerRef.current) return
 
-    const { terminal, fitAddon } = createTerminal(execContainerRef.current, true)
+    const { terminal, fitAddon } = createTerminal(execContainerRef.current, true, xtermTheme)
     execTerminalRef.current = terminal
     execFitRef.current = fitAddon
 
@@ -150,6 +154,15 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
       execFitRef.current = null
     }
   }, [namespace, pod, container, execStarted])
+
+  useEffect(() => {
+    if (logTerminalRef.current) logTerminalRef.current.options.theme = xtermTheme
+    if (execTerminalRef.current) execTerminalRef.current.options.theme = xtermTheme
+    requestAnimationFrame(() => {
+      logFitRef.current?.fit()
+      if (shellOpen) execFitRef.current?.fit()
+    })
+  }, [theme])
 
   useEffect(() => {
     requestAnimationFrame(() => {
@@ -276,14 +289,14 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
   }
 
   return (
-    <div ref={panelRef} onMouseDown={() => onActivate(id)} className={`flex flex-col h-full rounded-lg overflow-hidden bg-[#0f172a] border ${active ? 'border-amber-400/50 ring-1 ring-amber-400/20' : 'border-slate-700'} transition-[border-color,box-shadow] duration-200`}>
+    <div ref={panelRef} onMouseDown={() => onActivate(id)} className={`flex flex-col h-full rounded-lg overflow-hidden bg-slate-50 dark:bg-[#0f172a] border ${active ? 'border-amber-400/50 ring-1 ring-amber-400/20' : 'border-border-light dark:border-slate-700'} transition-[border-color,box-shadow] duration-200`}>
       {/* Log header */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-900/80 border-b border-slate-700 shrink-0 gap-2">
+      <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 dark:bg-slate-900/80 border-b border-border-light dark:border-slate-700 shrink-0 gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <span
-            className={`inline-block h-2 w-2 rounded-full shrink-0 ${logHook.connected ? 'bg-emerald-500' : 'bg-slate-500'}`}
+            className={`inline-block h-2 w-2 rounded-full shrink-0 ${logHook.connected ? 'bg-emerald-500' : 'bg-slate-400 dark:bg-slate-500'}`}
           />
-          <span className="text-xs text-slate-400 truncate">
+          <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
             {namespace}/{pod}
           </span>
         </div>
@@ -293,7 +306,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
             <select
               value={container}
               onChange={(e) => onContainerChange(id, e.target.value)}
-              className="text-xs bg-slate-800 text-slate-300 border border-slate-600 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary"
+              className="text-xs bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-border-light dark:border-slate-600 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary"
             >
               {containers.map((c) => (
                 <option key={c} value={c}>{c}</option>
@@ -305,7 +318,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
             variant="ghost"
             size="icon-xs"
             onClick={handleFollowToggle}
-            className={follow ? 'text-emerald-400 hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-800'}
+            className={follow ? 'text-emerald-400 hover:bg-slate-200 dark:hover:bg-slate-800' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-800'}
             title={follow ? 'Following (click to pause)' : 'Paused (click to follow)'}
           >
             <span className="material-symbols-outlined text-[16px]">
@@ -317,7 +330,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
             variant="ghost"
             size="icon-xs"
             onClick={handleShellToggle}
-            className={shellOpen ? 'text-violet-400 hover:bg-slate-800' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}
+            className={shellOpen ? 'text-violet-400 hover:bg-slate-200 dark:hover:bg-slate-800' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'}
             title={shellOpen ? 'Close Terminal' : 'Open Terminal'}
           >
             <span className="material-symbols-outlined text-[16px]">terminal</span>
@@ -327,7 +340,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
             variant="ghost"
             size="icon-xs"
             onClick={() => onFocus(focused ? null : id)}
-            className={focused ? 'text-amber-400 hover:bg-slate-800' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}
+            className={focused ? 'text-amber-400 hover:bg-slate-200 dark:hover:bg-slate-800' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'}
             title={focused ? 'Unfocus' : 'Focus'}
           >
             <span className="material-symbols-outlined text-[16px]">
@@ -339,7 +352,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
             variant="ghost"
             size="icon-xs"
             onClick={handleClear}
-            className="text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+            className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800"
             title="Clear logs"
           >
             <span className="material-symbols-outlined text-[16px]">delete</span>
@@ -349,7 +362,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
             variant="ghost"
             size="icon-xs"
             onClick={() => onClose(id)}
-            className="text-slate-500 hover:text-red-400 hover:bg-slate-800"
+            className="text-slate-500 hover:text-red-400 hover:bg-slate-200 dark:hover:bg-slate-800"
             title="Close"
           >
             <span className="material-symbols-outlined text-[16px]">close</span>
@@ -359,7 +372,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
 
       {/* Search bar */}
       {searchOpen && (
-        <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-800/90 border-b border-slate-700 shrink-0">
+        <div className="flex items-center gap-1.5 px-2 py-1 bg-slate-100 dark:bg-slate-800/90 border-b border-border-light dark:border-slate-700 shrink-0">
           <span className="material-symbols-outlined text-[14px] text-slate-400">search</span>
           <input
             ref={searchInputRef}
@@ -378,15 +391,15 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
               }
             }}
             placeholder="Search logs..."
-            className="flex-1 text-xs bg-slate-900 text-slate-200 border border-slate-600 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-slate-500"
+            className="flex-1 text-xs bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-border-light dark:border-slate-600 rounded px-2 py-0.5 focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-slate-400 dark:placeholder:text-slate-500"
           />
-          <Button variant="ghost" size="icon-xs" onClick={searchPrev} className="text-slate-400 hover:text-slate-200 hover:bg-slate-700" title="Previous (Shift+Enter)">
+          <Button variant="ghost" size="icon-xs" onClick={searchPrev} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700" title="Previous (Shift+Enter)">
             <span className="material-symbols-outlined text-[14px]">expand_less</span>
           </Button>
-          <Button variant="ghost" size="icon-xs" onClick={searchNext} className="text-slate-400 hover:text-slate-200 hover:bg-slate-700" title="Next (Enter)">
+          <Button variant="ghost" size="icon-xs" onClick={searchNext} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700" title="Next (Enter)">
             <span className="material-symbols-outlined text-[14px]">expand_more</span>
           </Button>
-          <Button variant="ghost" size="icon-xs" onClick={closeSearch} className="text-slate-400 hover:text-slate-200 hover:bg-slate-700" title="Close (Esc)">
+          <Button variant="ghost" size="icon-xs" onClick={closeSearch} className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700" title="Close (Esc)">
             <span className="material-symbols-outlined text-[14px]">close</span>
           </Button>
         </div>
@@ -404,14 +417,14 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
         <div
           onMouseDown={shellOpen ? startDrag : undefined}
           onClick={shellOpen ? undefined : handleShellToggle}
-          className={`flex items-center gap-2 px-3 py-1 bg-slate-900/80 border-t border-slate-700 shrink-0 transition-colors ${
+          className={`flex items-center gap-2 px-3 py-1 bg-slate-100 dark:bg-slate-900/80 border-t border-border-light dark:border-slate-700 shrink-0 transition-colors ${
             shellOpen
               ? 'cursor-row-resize hover:bg-primary/20 active:bg-primary/30'
-              : 'cursor-pointer hover:bg-slate-800/80'
+              : 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-800/80'
           }`}
         >
           <span className="material-symbols-outlined text-[14px] text-violet-400">terminal</span>
-          <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex-1">Shell</span>
+          <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex-1">Shell</span>
           {shellOpen ? (
             <Button
               variant="ghost"
@@ -421,7 +434,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
                 handleShellToggle()
               }}
               onMouseDown={(e) => e.stopPropagation()}
-              className="text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+              className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800"
               title="Collapse Shell"
             >
               <span className="material-symbols-outlined text-[14px]">expand_more</span>
@@ -437,7 +450,7 @@ export const LogPanel = memo(forwardRef<LogPanelHandle, LogPanelProps>(function 
         <div
           ref={execContainerRef}
           data-terminal="exec"
-          className={shellOpen ? 'min-h-0 border-t border-slate-700' : 'h-0 overflow-hidden'}
+          className={shellOpen ? 'min-h-0 border-t border-border-light dark:border-slate-700' : 'h-0 overflow-hidden'}
           style={shellOpen ? { flex: `${100 - logRatio} 0 0%` } : undefined}
         />
       )}

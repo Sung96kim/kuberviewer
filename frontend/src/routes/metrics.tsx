@@ -301,7 +301,7 @@ function MetricsPage() {
           <h2 className="text-xl font-bold mb-2">Prometheus Not Available</h2>
           <p className="text-slate-500 dark:text-slate-400 max-w-md text-sm">
             No Prometheus instance was detected in your cluster. To use the metrics dashboard,
-            deploy Prometheus or set the <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs">KUBERVIEWER_PROMETHEUS_URL</code> environment variable.
+            deploy Prometheus or set the <code className="px-1.5 py-0.5 bg-slate-100 dark:bg-surface-highlight rounded text-xs">KUBERVIEWER_PROMETHEUS_URL</code> environment variable.
           </p>
         </div>
       </div>
@@ -353,7 +353,7 @@ function MetricsPage() {
           <select
             value={namespace}
             onChange={(e) => handleNamespaceChange(e.target.value)}
-            className="w-full pl-10 pr-3 py-2 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none appearance-none"
+            className="w-full pl-10 pr-3 py-2 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none appearance-none"
           >
             <option value="">All Namespaces</option>
             {namespaces.map((ns) => (
@@ -370,7 +370,7 @@ function MetricsPage() {
             <select
               value={pod}
               onChange={(e) => setPod(e.target.value)}
-              className="w-full pl-10 pr-3 py-2 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none appearance-none"
+              className="w-full pl-10 pr-3 py-2 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-sm focus:ring-1 focus:ring-primary focus:border-primary outline-none appearance-none"
             >
               <option value="">All Pods</option>
               {pods.map((p) => (

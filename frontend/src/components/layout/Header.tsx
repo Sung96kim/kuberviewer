@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
 import { NotificationCenter } from '#/components/layout/NotificationCenter'
+import { SettingsPopover } from '#/components/layout/SettingsPopover'
+import { Skeleton } from '#/components/ui/skeleton'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useContexts, useSwitchContext } from '#/hooks/use-contexts'
-import { useTheme } from '#/hooks/use-theme'
 import { usePollingInterval } from '#/hooks/use-polling'
+import { useSettings } from '#/hooks/use-settings'
 import { api } from '#/api'
 import {
   Popover,
@@ -42,7 +44,7 @@ function HealthStat({ icon, label, value, status, children }: {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 hover:bg-slate-200 dark:hover:bg-slate-700/60 transition-colors cursor-pointer">
+        <button className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-100 dark:bg-surface-highlight/60 border border-slate-200 dark:border-border-dark/50 hover:bg-slate-200 dark:hover:bg-surface-hover/60 transition-colors cursor-pointer">
           <span className={`material-symbols-outlined text-[14px] ${status ? STATUS_COLORS[status] : 'text-slate-400'}`}>{icon}</span>
           <span className="text-xs font-semibold text-slate-900 dark:text-white">{value}</span>
           <span className="text-[10px] text-slate-500">{label}</span>
@@ -74,7 +76,7 @@ function DetailLink({ to, params, label }: { to: string; params?: Record<string,
     <Link
       to={to}
       params={params}
-      className="flex items-center gap-1 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700 text-xs text-primary hover:text-primary/80 transition-colors"
+      className="flex items-center gap-1 mt-2 pt-2 border-t border-slate-200 dark:border-border-dark text-xs text-primary hover:text-primary/80 transition-colors"
     >
       {label}
       <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
@@ -86,7 +88,8 @@ export function Header() {
   const navigate = useNavigate()
   const { data: contextData } = useContexts()
   const switchContext = useSwitchContext()
-  const { theme, toggleTheme } = useTheme()
+  const { settings } = useSettings()
+  const compact = settings.compactMode
   const [open, setOpen] = useState(false)
   const [searchValue, setSearchValue] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
@@ -107,7 +110,7 @@ export function Header() {
   const contexts = contextData?.contexts ?? []
 
   const healthInterval = usePollingInterval(60_000)
-  const { data: health } = useQuery({
+  const { data: health, isLoading: healthLoading } = useQuery({
     queryKey: ['cluster-health'],
     queryFn: () => api.clusterHealth(),
     staleTime: 60_000,
@@ -122,7 +125,7 @@ export function Header() {
   }, [searchValue, navigate])
 
   return (
-    <header className="h-16 flex items-center border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark px-6 shrink-0 z-20">
+    <header className={`${compact ? 'h-12 px-4' : 'h-16 px-6'} flex items-center border-b border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark shrink-0 z-20`}>
       <div className="flex items-center gap-4 shrink-0">
         <Link to="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
           <div className="size-8 text-blue-500 flex items-center justify-center">
@@ -166,59 +169,68 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-4 shrink-0">
-        {health && (
-          <div className="hidden lg:flex items-center gap-2">
-            <HealthStat
-              icon="dns"
-              label="Nodes"
-              value={`${health.nodes.ready}/${health.nodes.total}`}
-              status={health.nodes.ready === health.nodes.total ? 'ok' : 'warn'}
-            >
-              <DetailRow label="Ready" value={health.nodes.ready} status="ok" />
-              <DetailRow label="Not Ready" value={health.nodes.total - health.nodes.ready} status={health.nodes.total - health.nodes.ready > 0 ? 'error' : 'ok'} />
-              <DetailRow label="Total" value={health.nodes.total} />
-              <DetailLink to="/nodes" label="View all nodes" />
-            </HealthStat>
-            <HealthStat
-              icon="layers"
-              label="Deploys"
-              value={`${health.deployments.ready}/${health.deployments.total}`}
-              status={health.deployments.ready === health.deployments.total ? 'ok' : 'warn'}
-            >
-              <DetailRow label="Ready" value={health.deployments.ready} status="ok" />
-              <DetailRow label="Not Ready" value={health.deployments.total - health.deployments.ready} status={health.deployments.total - health.deployments.ready > 0 ? 'warn' : 'ok'} />
-              <DetailRow label="Total" value={health.deployments.total} />
-              <DetailLink to="/resources/$" params={{ _splat: 'apps/v1/deployments' }} label="View all deployments" />
-            </HealthStat>
-            <HealthStat
-              icon="deployed_code"
-              label="Pods"
-              value={`${health.pods.running}/${health.pods.total}`}
-              status={health.pods.failed > 0 || Object.values(health.pods.issues).some(v => v > 0) ? 'error' : health.pods.pending > 0 ? 'warn' : 'ok'}
-            >
-              <DetailRow label="Running" value={health.pods.running} status="ok" />
-              <DetailRow label="Pending" value={health.pods.pending} status={health.pods.pending > 0 ? 'warn' : 'ok'} />
-              <DetailRow label="Failed" value={health.pods.failed} status={health.pods.failed > 0 ? 'error' : 'ok'} />
-              {Object.entries(health.pods.issues).map(([reason, count]) => (
-                <DetailRow key={reason} label={reason} value={count} status={count > 0 ? 'error' : 'ok'} />
+        <div className="hidden lg:flex items-center gap-2">
+          {healthLoading && (
+            <>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton key={i} className="h-8 w-24 rounded-md" />
               ))}
-              <DetailRow label="Total" value={health.pods.total} />
-              <DetailLink to="/resources/$" params={{ _splat: 'v1/pods' }} label="View all pods" />
-            </HealthStat>
-            <HealthStat icon="folder" label="NS" value={String(health.namespaces)}>
-              <DetailRow label="Total" value={health.namespaces} />
-              <DetailLink to="/namespaces" label="View all namespaces" />
-            </HealthStat>
-            <HealthStat icon="lan" label="Svcs" value={String(health.services)}>
-              <DetailRow label="Total" value={health.services} />
-              <DetailLink to="/resources/$" params={{ _splat: 'v1/services' }} label="View all services" />
-            </HealthStat>
-          </div>
-        )}
+            </>
+          )}
+          {health && (
+            <>
+              <HealthStat
+                icon="dns"
+                label="Nodes"
+                value={`${health.nodes.ready}/${health.nodes.total}`}
+                status={health.nodes.ready === health.nodes.total ? 'ok' : 'warn'}
+              >
+                <DetailRow label="Ready" value={health.nodes.ready} status="ok" />
+                <DetailRow label="Not Ready" value={health.nodes.total - health.nodes.ready} status={health.nodes.total - health.nodes.ready > 0 ? 'error' : 'ok'} />
+                <DetailRow label="Total" value={health.nodes.total} />
+                <DetailLink to="/nodes" label="View all nodes" />
+              </HealthStat>
+              <HealthStat
+                icon="layers"
+                label="Deploys"
+                value={`${health.deployments.ready}/${health.deployments.total}`}
+                status={health.deployments.ready === health.deployments.total ? 'ok' : 'warn'}
+              >
+                <DetailRow label="Ready" value={health.deployments.ready} status="ok" />
+                <DetailRow label="Not Ready" value={health.deployments.total - health.deployments.ready} status={health.deployments.total - health.deployments.ready > 0 ? 'warn' : 'ok'} />
+                <DetailRow label="Total" value={health.deployments.total} />
+                <DetailLink to="/resources/$" params={{ _splat: 'apps/v1/deployments' }} label="View all deployments" />
+              </HealthStat>
+              <HealthStat
+                icon="deployed_code"
+                label="Pods"
+                value={`${health.pods.running}/${health.pods.total}`}
+                status={health.pods.failed > 0 || Object.values(health.pods.issues).some(v => v > 0) ? 'error' : health.pods.pending > 0 ? 'warn' : 'ok'}
+              >
+                <DetailRow label="Running" value={health.pods.running} status="ok" />
+                <DetailRow label="Pending" value={health.pods.pending} status={health.pods.pending > 0 ? 'warn' : 'ok'} />
+                <DetailRow label="Failed" value={health.pods.failed} status={health.pods.failed > 0 ? 'error' : 'ok'} />
+                {Object.entries(health.pods.issues).map(([reason, count]) => (
+                  <DetailRow key={reason} label={reason} value={count} status={count > 0 ? 'error' : 'ok'} />
+                ))}
+                <DetailRow label="Total" value={health.pods.total} />
+                <DetailLink to="/resources/$" params={{ _splat: 'v1/pods' }} label="View all pods" />
+              </HealthStat>
+              <HealthStat icon="folder" label="NS" value={String(health.namespaces)}>
+                <DetailRow label="Total" value={health.namespaces} />
+                <DetailLink to="/namespaces" label="View all namespaces" />
+              </HealthStat>
+              <HealthStat icon="lan" label="Svcs" value={String(health.services)}>
+                <DetailRow label="Total" value={health.services} />
+                <DetailLink to="/resources/$" params={{ _splat: 'v1/services' }} label="View all services" />
+              </HealthStat>
+            </>
+          )}
+        </div>
 
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
-            <button className="hidden sm:flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors min-w-[180px]">
+            <button className="hidden sm:flex items-center justify-between gap-3 px-3 py-2 rounded-lg border border-border-light dark:border-border-dark bg-background-light dark:bg-background-dark hover:bg-slate-100 dark:hover:bg-surface-hover transition-colors min-w-[180px]">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary text-[20px]">dns</span>
                 <span className="text-sm font-medium">{currentContext ?? 'No context'}</span>
@@ -264,15 +276,7 @@ export function Header() {
 
         <div className="flex items-center gap-2">
           <NotificationCenter />
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            <span className="material-symbols-outlined">
-              {theme === 'dark' ? 'light_mode' : 'dark_mode'}
-            </span>
-          </button>
+          <SettingsPopover />
         </div>
 
         <div className="h-9 w-9 rounded-full bg-linear-to-tr from-primary to-purple-500 p-[2px] cursor-pointer">

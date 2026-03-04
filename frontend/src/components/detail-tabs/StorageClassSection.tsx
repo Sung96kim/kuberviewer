@@ -16,22 +16,22 @@ export const StorageClassSection = memo(function StorageClassSection({ resource 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3">
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
           <span className="material-symbols-outlined text-[18px] text-primary">cloud</span>
           <span className="text-sm text-slate-600 dark:text-slate-400">Provisioner:</span>
           <span className="text-sm font-medium text-slate-900 dark:text-white font-mono">{provisioner}</span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
           <span className="material-symbols-outlined text-[18px] text-emerald-500">recycling</span>
           <span className="text-sm text-slate-600 dark:text-slate-400">Reclaim:</span>
           <span className="text-sm font-medium text-slate-900 dark:text-white">{reclaimPolicy}</span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
           <span className="material-symbols-outlined text-[18px] text-amber-500">schedule</span>
           <span className="text-sm text-slate-600 dark:text-slate-400">Binding:</span>
           <span className="text-sm font-medium text-slate-900 dark:text-white">{volumeBindingMode}</span>
         </div>
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
           <span className="material-symbols-outlined text-[18px]" style={{ color: allowVolumeExpansion ? '#10b981' : '#64748b' }}>
             {allowVolumeExpansion ? 'check_circle' : 'cancel'}
           </span>
@@ -73,7 +73,7 @@ export const StorageClassSection = memo(function StorageClassSection({ resource 
           </div>
           <div className="p-4 flex flex-wrap gap-2">
             {mountOptions.map((opt) => (
-              <span key={opt} className="inline-flex items-center px-2.5 py-1 rounded bg-slate-100 dark:bg-slate-800 text-xs font-mono border border-border-light dark:border-border-dark text-slate-700 dark:text-slate-300">
+              <span key={opt} className="inline-flex items-center px-2.5 py-1 rounded bg-slate-100 dark:bg-surface-highlight text-xs font-mono border border-border-light dark:border-border-dark text-slate-700 dark:text-slate-300">
                 {opt}
               </span>
             ))}

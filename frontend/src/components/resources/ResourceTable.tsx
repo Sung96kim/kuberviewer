@@ -12,6 +12,7 @@ import {
 import type { ColumnDef, SortingState, ExpandedState, Row } from '@tanstack/react-table'
 import { Skeleton } from '#/components/ui/skeleton'
 import { getStatusClasses } from '#/lib/resource-helpers'
+import { useSettings } from '#/hooks/use-settings'
 
 type KubeItem = Record<string, unknown>
 
@@ -36,7 +37,7 @@ function TableSkeleton({ columnCount }: { columnCount: number }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
-        <thead className="bg-slate-50 dark:bg-slate-800/50">
+        <thead className="bg-slate-50 dark:bg-surface-highlight/50">
           <tr>
             {Array.from({ length: columnCount }).map((_, i) => (
               <th key={i} className="px-6 py-4">
@@ -101,7 +102,7 @@ function GroupHeaderRow({
 
   return (
     <tr
-      className="bg-slate-50/50 dark:bg-slate-800/20 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/40 transition-colors"
+      className="bg-slate-50/50 dark:bg-surface-highlight/20 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-surface-hover/40 transition-colors"
       onClick={() => row.toggleExpanded()}
     >
       <td colSpan={colSpan} className="px-6 py-3">
@@ -112,7 +113,7 @@ function GroupHeaderRow({
           <span className="font-semibold text-slate-900 dark:text-white">
             {row.groupingValue as string}
           </span>
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 dark:bg-surface-hover text-slate-600 dark:text-slate-300">
             {count} {count === 1 ? 'pod' : 'pods'}
           </span>
           {aggregate && (
@@ -140,6 +141,9 @@ function GroupHeaderRow({
 }
 
 export const ResourceTable = memo(function ResourceTable({ data, columns, isLoading, onRowClick, groupByColumn, getGroupAggregate, onExpandedChange, renderRowAction }: ResourceTableProps) {
+  const { settings } = useSettings()
+  const cp = settings.compactMode
+  const cellCls = cp ? 'px-4 py-2' : 'px-6 py-4'
   const [sorting, setSorting] = useState<SortingState>([])
   const [globalFilter, setGlobalFilter] = useState('')
   const [expanded, setExpanded] = useState<ExpandedState>({})
@@ -180,10 +184,14 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
     getExpandedRowModel: getExpandedRowModel(),
     initialState: {
       pagination: {
-        pageSize: 20,
+        pageSize: settings.pageSize,
       },
     },
   })
+
+  useEffect(() => {
+    table.setPageSize(settings.pageSize)
+  }, [settings.pageSize, table])
 
   useEffect(() => {
     if (!onExpandedChange) return
@@ -235,7 +243,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm text-slate-600 dark:text-slate-400">
-          <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase font-semibold text-slate-500 dark:text-slate-400 tracking-wider">
+          <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase font-semibold text-slate-500 dark:text-slate-400 tracking-wider">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id}>
                 {headerGroup.headers.map((header) => {
@@ -244,7 +252,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                   return (
                     <th
                       key={header.id}
-                      className={`px-6 py-4 ${canSort ? 'cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 group select-none' : ''}`}
+                      className={`${cellCls} ${canSort ? 'cursor-pointer hover:text-slate-700 dark:hover:text-slate-200 group select-none' : ''}`}
                       onClick={canSort ? header.column.getToggleSortingHandler() : undefined}
                     >
                       <div className="flex items-center gap-1">
@@ -256,7 +264,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                     </th>
                   )
                 })}
-                {renderRowAction && <th className="px-6 py-4 w-10" />}
+                {renderRowAction && <th className={`${cellCls} w-10`} />}
               </tr>
             ))}
           </thead>
@@ -289,7 +297,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                 return (
                   <tr
                     key={row.id}
-                    className={`group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
+                    className={`group hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors ${onRowClick ? 'cursor-pointer' : ''}`}
                     onClick={() => onRowClick?.(row.original)}
                   >
                     {row.getVisibleCells().map((cell) => {
@@ -300,7 +308,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                       const isAge = cell.column.id === 'age'
 
                       return (
-                        <td key={cell.id} className={`px-6 py-4 ${isSubRow && isName ? 'pl-12' : ''}`}>
+                        <td key={cell.id} className={`${cellCls} ${isSubRow && isName ? 'pl-12' : ''}`}>
                           {isStatus ? (
                             <StatusBadge value={cell.getValue() as string} />
                           ) : isName ? (
@@ -318,7 +326,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                       )
                     })}
                     {renderRowAction && (
-                      <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                      <td className={cellCls} onClick={(e) => e.stopPropagation()}>
                         {renderRowAction(row.original)}
                       </td>
                     )}
@@ -342,7 +350,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
               <button
                 onClick={() => table.previousPage()}
                 disabled={!table.getCanPreviousPage()}
-                className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-border-light dark:border-border-dark bg-white dark:bg-surface-dark text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-border-light dark:border-border-dark bg-white dark:bg-surface-dark text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-[18px]">chevron_left</span>
               </button>
@@ -361,7 +369,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
                     className={
                       page === currentPage
                         ? 'z-10 bg-primary/10 border-primary text-primary relative inline-flex items-center px-4 py-2 border text-sm font-medium'
-                        : 'bg-white dark:bg-surface-dark border-border-light dark:border-border-dark text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 relative inline-flex items-center px-4 py-2 border text-sm font-medium'
+                        : 'bg-white dark:bg-surface-dark border-border-light dark:border-border-dark text-slate-500 hover:bg-slate-50 dark:hover:bg-surface-hover relative inline-flex items-center px-4 py-2 border text-sm font-medium'
                     }
                   >
                     {page + 1}
@@ -371,7 +379,7 @@ export const ResourceTable = memo(function ResourceTable({ data, columns, isLoad
               <button
                 onClick={() => table.nextPage()}
                 disabled={!table.getCanNextPage()}
-                className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-border-light dark:border-border-dark bg-white dark:bg-surface-dark text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-border-light dark:border-border-dark bg-white dark:bg-surface-dark text-sm font-medium text-slate-500 hover:bg-slate-50 dark:hover:bg-surface-hover disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <span className="material-symbols-outlined text-[18px]">chevron_right</span>
               </button>

@@ -4,6 +4,21 @@ import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
 import { SearchAddon } from '@xterm/addon-search'
 import { useExecTerminal } from '#/hooks/use-exec-terminal'
+import { useTheme } from '#/hooks/use-theme'
+
+const XTERM_DARK = {
+  background: '#0f172a', foreground: '#e2e8f0', cursor: '#818cf8',
+  selectionBackground: '#334155', black: '#1e293b', red: '#f87171',
+  green: '#4ade80', yellow: '#facc15', blue: '#60a5fa',
+  magenta: '#c084fc', cyan: '#22d3ee', white: '#f1f5f9',
+}
+
+const XTERM_LIGHT = {
+  background: '#f8fafc', foreground: '#334155', cursor: '#6366f1',
+  selectionBackground: '#bfdbfe', black: '#f1f5f9', red: '#dc2626',
+  green: '#16a34a', yellow: '#ca8a04', blue: '#2563eb',
+  magenta: '#9333ea', cyan: '#0891b2', white: '#1e293b',
+}
 
 type TerminalSessionProps = {
   namespace: string
@@ -18,6 +33,8 @@ export const TerminalSessionView = memo(function TerminalSessionView({
   container,
   isVisible,
 }: TerminalSessionProps) {
+  const { theme } = useTheme()
+  const xtermTheme = theme === 'dark' ? XTERM_DARK : XTERM_LIGHT
   const containerRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitAddonRef = useRef<FitAddon | null>(null)
@@ -33,20 +50,7 @@ export const TerminalSessionView = memo(function TerminalSessionView({
       cursorBlink: true,
       fontSize: 13,
       fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-      theme: {
-        background: '#0f172a',
-        foreground: '#e2e8f0',
-        cursor: '#818cf8',
-        selectionBackground: '#334155',
-        black: '#1e293b',
-        red: '#f87171',
-        green: '#4ade80',
-        yellow: '#facc15',
-        blue: '#60a5fa',
-        magenta: '#c084fc',
-        cyan: '#22d3ee',
-        white: '#f1f5f9',
-      },
+      theme: xtermTheme,
       scrollback: 10000,
       convertEol: true,
     })
@@ -82,6 +86,11 @@ export const TerminalSessionView = memo(function TerminalSessionView({
       fitAddonRef.current = null
     }
   }, [namespace, pod, container])
+
+  useEffect(() => {
+    if (terminalRef.current) terminalRef.current.options.theme = xtermTheme
+    requestAnimationFrame(() => fitAddonRef.current?.fit())
+  }, [theme])
 
   useEffect(() => {
     if (isVisible && fitAddonRef.current) {

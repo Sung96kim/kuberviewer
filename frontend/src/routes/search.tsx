@@ -158,7 +158,7 @@ function ResourceSearchGroup({ resource, query }: { resource: SearchableResource
             key={result.splatPath}
             to="/resources/$"
             params={{ _splat: result.splatPath }}
-            className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group"
+            className="flex items-center justify-between px-5 py-3 hover:bg-slate-50 dark:hover:bg-surface-hover/50 transition-colors group"
           >
             <div className="flex items-center gap-3 min-w-0">
               <span className="text-sm font-medium text-primary group-hover:text-primary/80 truncate">

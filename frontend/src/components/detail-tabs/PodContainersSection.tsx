@@ -44,7 +44,7 @@ function ContainerCard({ status, isInit, onOpenTerminal }: { status: ContainerSt
           <div className={`h-2.5 w-2.5 rounded-full ${classes.dot}`} />
           <span className="text-sm font-bold">{status.name}</span>
           {isInit && (
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+            <span className="text-[10px] uppercase tracking-wider font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-surface-highlight px-1.5 py-0.5 rounded">
               init
             </span>
           )}
@@ -58,7 +58,7 @@ function ContainerCard({ status, isInit, onOpenTerminal }: { status: ContainerSt
               variant="ghost"
               size="icon-xs"
               onClick={() => onOpenTerminal(status.name)}
-              className="text-slate-500 hover:text-slate-300 hover:bg-slate-800"
+              className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800"
               title={`Open terminal for ${status.name}`}
             >
               <span className="material-symbols-outlined text-[16px]">terminal</span>

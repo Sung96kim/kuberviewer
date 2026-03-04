@@ -218,7 +218,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
             <button
               onClick={() => handleScale(-1)}
               disabled={replicaCount <= 0 || scaleMutation.isPending}
-              className="px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none border-r border-border-light dark:border-border-dark"
+              className="px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-surface-hover hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none border-r border-border-light dark:border-border-dark"
             >
               <span className="material-symbols-outlined text-[16px]">remove</span>
             </button>
@@ -229,7 +229,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
             <button
               onClick={() => handleScale(1)}
               disabled={scaleMutation.isPending}
-              className="px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none border-l border-border-light dark:border-border-dark"
+              className="px-2.5 py-1.5 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-surface-hover hover:text-slate-900 dark:hover:text-white transition-colors disabled:opacity-40 disabled:pointer-events-none border-l border-border-light dark:border-border-dark"
             >
               <span className="material-symbols-outlined text-[16px]">add</span>
             </button>
@@ -237,7 +237,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
 
           <button
             onClick={onEditYAML}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm font-medium"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-border-light dark:border-border-dark bg-surface-light dark:bg-surface-dark hover:bg-slate-50 dark:hover:bg-surface-hover transition-colors text-sm font-medium"
           >
             <span className="material-symbols-outlined text-[16px]">description</span>
             Edit YAML
@@ -280,7 +280,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
               {isHealthy ? 'Healthy' : `${readyReplicas}/${desiredReplicas} Ready`}
             </span>
           </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${isHealthy ? 'bg-emerald-400' : 'bg-yellow-400'}`}
               style={{ width: `${availabilityPct}%` }}
@@ -305,7 +305,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
               </span>
             )}
           </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${hasMetrics ? getUsageBarColor(cpuPct).bar : 'bg-blue-500'}`}
               style={{ width: `${Math.min(100, cpuPct)}%` }}
@@ -330,7 +330,7 @@ export const DeploymentHeader = memo(function DeploymentHeader({
               </span>
             )}
           </div>
-          <div className="h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 dark:bg-surface-highlight rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${hasMetrics ? getUsageBarColor(memPct).bar : 'bg-purple-500'}`}
               style={{ width: `${Math.min(100, memPct)}%` }}

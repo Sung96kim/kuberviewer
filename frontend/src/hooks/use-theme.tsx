@@ -1,6 +1,13 @@
-import { useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect } from 'react'
 
 type Theme = 'dark' | 'light'
+
+type ThemeContextValue = {
+  theme: Theme
+  toggleTheme: () => void
+}
+
+const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem('kuberviewer-theme') as Theme | null
@@ -8,7 +15,7 @@ function getInitialTheme(): Theme {
   return document.documentElement.classList.contains('dark') ? 'dark' : 'light'
 }
 
-export function useTheme() {
+export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getInitialTheme)
 
   useEffect(() => {
@@ -20,5 +27,15 @@ export function useTheme() {
     setThemeState((prev) => (prev === 'dark' ? 'light' : 'dark'))
   }, [])
 
-  return { theme, toggleTheme }
+  return (
+    <ThemeContext.Provider value={{ theme, toggleTheme }}>
+      {children}
+    </ThemeContext.Provider>
+  )
+}
+
+export function useTheme() {
+  const ctx = useContext(ThemeContext)
+  if (!ctx) throw new Error('useTheme must be used within ThemeProvider')
+  return ctx
 }

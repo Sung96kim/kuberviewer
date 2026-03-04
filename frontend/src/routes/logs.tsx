@@ -420,8 +420,8 @@ function GroupTab({ group, active, index, isOnly, editing, onSelect, onStartRena
           dragOver
             ? 'border-primary bg-primary/10'
             : active
-              ? 'bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white border-border-light dark:border-slate-600'
-              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 border-transparent'
+              ? 'bg-slate-100 dark:bg-surface-highlight text-slate-900 dark:text-white border-border-light dark:border-border-dark'
+              : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-surface-hover/50 border-transparent'
         )}
       >
         {editing ? (
@@ -448,7 +448,7 @@ function GroupTab({ group, active, index, isOnly, editing, onSelect, onStartRena
       {!editing && (
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
-            <button className="opacity-0 group-hover/tab:opacity-100 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 transition-all">
+            <button className="opacity-0 group-hover/tab:opacity-100 p-0.5 rounded hover:bg-slate-200 dark:hover:bg-surface-hover transition-all">
               <span className="material-symbols-outlined text-[14px] text-slate-500 dark:text-slate-400">more_vert</span>
             </button>
           </DropdownMenuTrigger>
@@ -798,7 +798,7 @@ function LogsPage() {
         ))}
         <button
           onClick={addGroup}
-          className="flex items-center justify-center size-7 rounded-t-md text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors"
+          className="flex items-center justify-center size-7 rounded-t-md text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-surface-hover/50 transition-colors"
           title="New group (N)"
         >
           <span className="material-symbols-outlined text-[16px]">add</span>
@@ -809,7 +809,7 @@ function LogsPage() {
         <div className="flex items-center gap-4 shrink-0 flex-wrap">
           {HOTKEYS.map(({ key, label }) => (
             <span key={key} className="text-[11px] text-slate-500 dark:text-slate-500 flex items-center gap-1">
-              <kbd className="px-1 py-0.5 rounded border border-border-light dark:border-border-dark bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 font-mono text-[10px] leading-none">{key}</kbd>
+              <kbd className="px-1 py-0.5 rounded border border-border-light dark:border-border-dark bg-slate-100 dark:bg-surface-highlight text-slate-500 dark:text-slate-400 font-mono text-[10px] leading-none">{key}</kbd>
               {label}
             </span>
           ))}
@@ -820,7 +820,7 @@ function LogsPage() {
         {panels.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center space-y-4">
-              <div className="mx-auto w-16 h-16 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <div className="mx-auto w-16 h-16 rounded-full bg-slate-100 dark:bg-surface-highlight flex items-center justify-center">
                 <span className="material-symbols-outlined text-[32px] text-slate-400">article</span>
               </div>
               <div>

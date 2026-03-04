@@ -347,7 +347,7 @@ function NodeDetailPage() {
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+                  <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
                     <tr>
                       <th className="px-6 py-3">Pod Name</th>
                       <th className="px-6 py-3">Namespace</th>
@@ -394,7 +394,7 @@ function NodeDetailPage() {
                         const statusClasses = statusColor[displayStatus] ?? 'bg-slate-500/10 text-slate-400 border-slate-500/20'
 
                         return (
-                          <tr key={`${pod.metadata.namespace}/${pod.metadata.name}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                          <tr key={`${pod.metadata.namespace}/${pod.metadata.name}`} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                             <td className="px-6 py-3">
                               <Link
                                 to="/resources/$"

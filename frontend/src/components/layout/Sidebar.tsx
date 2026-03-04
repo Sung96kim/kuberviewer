@@ -1,7 +1,8 @@
-import { useState, useMemo, memo, useCallback } from 'react'
+import { useState, useMemo, useEffect, memo, useCallback } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useAPIResources } from '#/hooks/use-api-resources'
 import { usePrometheusStatus } from '#/hooks/use-prometheus'
+import { useSettings } from '#/hooks/use-settings'
 import type { ResourceGroup } from '#/types'
 
 const CLUSTER_NAV = [
@@ -47,8 +48,13 @@ function buildResourceSplat(resource: { group: string; version: string; name: st
 export const Sidebar = memo(function Sidebar() {
   const { data: apiData } = useAPIResources()
   const { data: promStatus } = usePrometheusStatus()
-  const [collapsed, setCollapsed] = useState(false)
+  const { settings } = useSettings()
+  const [collapsed, setCollapsed] = useState(settings.sidebarAutoCollapse)
   const [clusterOpen, setClusterOpen] = useState(true)
+
+  useEffect(() => {
+    if (settings.sidebarAutoCollapse) setCollapsed(true)
+  }, [settings.sidebarAutoCollapse])
   const groups: ResourceGroup[] = useMemo(() => apiData?.groups ?? [], [apiData])
 
   if (collapsed) {
@@ -57,7 +63,7 @@ export const Sidebar = memo(function Sidebar() {
         <div className="p-3 flex justify-center">
           <button
             onClick={() => setCollapsed(false)}
-            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+            className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 dark:text-slate-400 transition-colors"
           >
             <span className="material-symbols-outlined text-[20px]">menu</span>
           </button>
@@ -71,7 +77,7 @@ export const Sidebar = memo(function Sidebar() {
       <div className="p-3 flex justify-end">
         <button
           onClick={() => setCollapsed(true)}
-          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+          className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 dark:text-slate-400 transition-colors"
         >
           <span className="material-symbols-outlined text-[20px]">menu_open</span>
         </button>
@@ -94,9 +100,9 @@ export const Sidebar = memo(function Sidebar() {
                 <Link
                   key={item.href}
                   to={item.href as string}
-                  className="flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
+                  className="flex items-center gap-2.5 pl-6 pr-3 py-1 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-surface-hover/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
                   activeProps={{
-                    className: 'flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
+                    className: 'flex items-center gap-2.5 pl-6 pr-3 py-1 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
                   }}
                 >
                   <span className="material-symbols-outlined shrink-0 text-[18px] text-blue-400">{item.icon}</span>
@@ -106,9 +112,9 @@ export const Sidebar = memo(function Sidebar() {
               {promStatus?.available && (
                 <Link
                   to="/metrics"
-                  className="flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
+                  className="flex items-center gap-2.5 pl-6 pr-3 py-1 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-surface-hover/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
                   activeProps={{
-                    className: 'flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
+                    className: 'flex items-center gap-2.5 pl-6 pr-3 py-1 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
                   }}
                 >
                   <span className="material-symbols-outlined shrink-0 text-[18px] text-blue-400">monitoring</span>
@@ -154,9 +160,9 @@ const SidebarGroup = memo(function SidebarGroup({ group }: { group: ResourceGrou
           key={`${resource.group}/${resource.version}/${resource.name}`}
           to="/resources/$"
           params={{ _splat: buildResourceSplat(resource) }}
-          className="flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
+          className="flex items-center gap-2.5 pl-6 pr-3 py-1 rounded-lg text-[13px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-surface-hover/50 hover:text-slate-900 dark:hover:text-slate-100 transition-colors min-w-0"
           activeProps={{
-            className: 'flex items-center gap-2.5 pl-6 pr-3 py-1.5 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
+            className: 'flex items-center gap-2.5 pl-6 pr-3 py-1 rounded-lg text-[13px] bg-primary/10 text-primary font-medium min-w-0',
           }}
         >
           <span className="material-symbols-outlined shrink-0 text-[18px] text-blue-400">{getKindIcon(resource.kind)}</span>

@@ -101,7 +101,7 @@ export const ServiceEndpointsTab = memo(function ServiceEndpointsTab({
             <h3 className="text-base font-bold">Ports</h3>
           </div>
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
+            <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
               <tr>
                 <th className="px-6 py-3">Name</th>
                 <th className="px-6 py-3">Protocol</th>
@@ -135,7 +135,7 @@ export const ServiceEndpointsTab = memo(function ServiceEndpointsTab({
           <div className="px-6 py-8 text-center text-sm text-slate-400">No endpoints</div>
         ) : (
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
+            <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase font-semibold text-slate-500 tracking-wider">
               <tr>
                 <th className="px-6 py-3">IP</th>
                 <th className="px-6 py-3">Target</th>

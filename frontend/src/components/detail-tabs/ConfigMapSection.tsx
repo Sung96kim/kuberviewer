@@ -34,7 +34,7 @@ export const ConfigMapSection = memo(function ConfigMapSection({ resource }: Con
                     <span className="material-symbols-outlined text-[16px] text-slate-500 dark:text-slate-400">file_present</span>
                     <span className="text-sm font-medium text-slate-900 dark:text-white">{key}</span>
                   </div>
-                  <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">binary</span>
+                  <span className="text-xs px-2 py-0.5 rounded bg-slate-100 dark:bg-surface-highlight text-slate-500 dark:text-slate-400">binary</span>
                 </div>
                 <p className="text-xs text-slate-500 dark:text-slate-400">{binaryData[key].length} bytes (base64)</p>
               </div>
@@ -72,7 +72,7 @@ function ConfigMapEntry({ entryKey, value }: { entryKey: string; value: string }
           )}
         </div>
       </div>
-      <pre className={`text-xs font-mono bg-slate-100 dark:bg-slate-800 rounded p-3 overflow-x-auto text-slate-700 dark:text-slate-300 border border-border-light dark:border-border-dark ${
+      <pre className={`text-xs font-mono bg-slate-100 dark:bg-surface-highlight rounded p-3 overflow-x-auto text-slate-700 dark:text-slate-300 border border-border-light dark:border-border-dark ${
         !expanded && isLong ? 'max-h-24 overflow-hidden' : ''
       }`}>
         {value}

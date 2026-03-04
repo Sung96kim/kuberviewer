@@ -101,7 +101,7 @@ export const DeploymentPodsTab = memo(function DeploymentPodsTab({
                   className={`cursor-pointer transition-colors ${
                     isSelected
                       ? 'bg-blue-500/10 hover:bg-blue-500/15'
-                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/30'
+                      : 'hover:bg-slate-50 dark:hover:bg-surface-hover/30'
                   }`}
                 >
                   <td className="px-5 py-3">
@@ -222,7 +222,7 @@ const PodDetailPanel = memo(function PodDetailPanel({
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
         >
           <span className="material-symbols-outlined text-[18px]">close</span>
         </button>
@@ -268,7 +268,7 @@ const PodDetailPanel = memo(function PodDetailPanel({
               <DetailSection title="Labels">
                 <div className="flex flex-wrap gap-1">
                   {Object.entries(metadata.labels).map(([k, v]) => (
-                    <span key={k} className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark text-slate-500 dark:text-slate-400 truncate max-w-full" title={`${k}=${v}`}>
+                    <span key={k} className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark text-slate-500 dark:text-slate-400 truncate max-w-full" title={`${k}=${v}`}>
                       {k.split('/').pop()}={v}
                     </span>
                   ))}

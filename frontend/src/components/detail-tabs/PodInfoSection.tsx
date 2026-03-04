@@ -137,7 +137,7 @@ export const PodInfoSection = memo(function PodInfoSection({ resource }: PodInfo
           </div>
           <div className="px-4 pb-4 flex flex-wrap gap-2">
             {volumes.map((vol) => (
-              <div key={vol.name} className="flex h-7 items-center gap-1.5 rounded bg-slate-100 dark:bg-slate-800 px-2.5 border border-border-light dark:border-border-dark">
+              <div key={vol.name} className="flex h-7 items-center gap-1.5 rounded bg-slate-100 dark:bg-surface-highlight px-2.5 border border-border-light dark:border-border-dark">
                 <span className="material-symbols-outlined text-[14px] text-slate-500 dark:text-slate-400">hard_drive</span>
                 <span className="text-xs font-medium text-slate-700 dark:text-slate-300">{vol.name}</span>
                 <span className="text-[10px] text-slate-400 dark:text-slate-500">{getVolumeType(vol)}</span>

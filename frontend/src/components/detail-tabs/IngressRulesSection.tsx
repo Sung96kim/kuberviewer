@@ -70,14 +70,14 @@ export const IngressRulesSection = memo(function IngressRulesSection({ resource 
     <div className="space-y-6">
       <div className="flex flex-wrap gap-3">
         {ingressClassName && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
             <span className="material-symbols-outlined text-[18px] text-primary">settings</span>
             <span className="text-sm text-slate-500 dark:text-slate-400">Class:</span>
             <span className="text-sm font-medium text-slate-900 dark:text-white">{ingressClassName}</span>
           </div>
         )}
         {defaultBackend && (
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark">
             <span className="material-symbols-outlined text-[18px] text-amber-500">alt_route</span>
             <span className="text-sm text-slate-500 dark:text-slate-400">Default backend:</span>
             <span className="text-sm font-medium text-slate-900 dark:text-white">{formatBackend(defaultBackend)}</span>
@@ -92,7 +92,7 @@ export const IngressRulesSection = memo(function IngressRulesSection({ resource 
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+              <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
                 <tr>
                   <th className="px-4 py-3">Hosts</th>
                   <th className="px-4 py-3">Secret</th>
@@ -100,7 +100,7 @@ export const IngressRulesSection = memo(function IngressRulesSection({ resource 
               </thead>
               <tbody className="divide-y divide-border-light dark:divide-border-dark">
                 {tls.map((t, i) => (
-                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                  <tr key={i} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex flex-wrap gap-1.5">
                         {(t.hosts ?? []).map((host) => (
@@ -133,7 +133,7 @@ export const IngressRulesSection = memo(function IngressRulesSection({ resource 
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+              <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
                 <tr>
                   <th className="px-4 py-3">Host</th>
                   <th className="px-4 py-3">Path</th>
@@ -146,7 +146,7 @@ export const IngressRulesSection = memo(function IngressRulesSection({ resource 
                   const paths = rule.http?.paths ?? []
                   if (paths.length === 0) {
                     return [(
-                      <tr key={`${ri}-empty`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                      <tr key={`${ri}-empty`} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                         <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">
                           <div className="flex items-center gap-1.5">
                             {rule.host ?? '*'}
@@ -162,7 +162,7 @@ export const IngressRulesSection = memo(function IngressRulesSection({ resource 
                     )]
                   }
                   return paths.map((path, pi) => (
-                    <tr key={`${ri}-${pi}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <tr key={`${ri}-${pi}`} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                       <td className="px-4 py-3 text-sm font-medium text-slate-900 dark:text-white">
                         {pi === 0 ? (
                           <div className="flex items-center gap-1.5">

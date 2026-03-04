@@ -204,7 +204,7 @@ const PodInspectContent = memo(function PodInspectContent({
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
         >
           <span className="material-symbols-outlined text-[18px]">close</span>
         </button>
@@ -217,7 +217,7 @@ const PodInspectContent = memo(function PodInspectContent({
           {leftCollapsed ? (
             <button
               onClick={() => setLeftCollapsed(false)}
-              className="w-7 shrink-0 flex flex-col items-center justify-center border-r border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors"
+              className="w-7 shrink-0 flex flex-col items-center justify-center border-r border-border-light dark:border-border-dark hover:bg-slate-50 dark:hover:bg-surface-hover/50 transition-colors"
               title="Expand panel"
             >
               <span className="material-symbols-outlined text-[14px] text-slate-400">chevron_right</span>
@@ -228,7 +228,7 @@ const PodInspectContent = memo(function PodInspectContent({
                 <div className="flex items-center justify-end -mb-2">
                   <button
                     onClick={() => setLeftCollapsed(true)}
-                    className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                    className="p-0.5 rounded hover:bg-slate-100 dark:hover:bg-surface-hover transition-colors"
                     title="Collapse panel"
                   >
                     <span className="material-symbols-outlined text-[14px] text-slate-400">chevron_left</span>
@@ -270,7 +270,7 @@ const PodInspectContent = memo(function PodInspectContent({
                   <DetailSection title="Labels">
                     <div className="flex flex-wrap gap-1">
                       {Object.entries(metadata.labels).map(([k, v]) => (
-                        <span key={k} className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-slate-800 border border-border-light dark:border-border-dark text-slate-500 dark:text-slate-400 truncate max-w-full" title={`${k}=${v}`}>
+                        <span key={k} className="inline-block px-1.5 py-0.5 rounded text-[10px] bg-slate-100 dark:bg-surface-highlight border border-border-light dark:border-border-dark text-slate-500 dark:text-slate-400 truncate max-w-full" title={`${k}=${v}`}>
                           {k.split('/').pop()}={v}
                         </span>
                       ))}
@@ -321,7 +321,7 @@ const PodInspectContent = memo(function PodInspectContent({
                 toolbarExtra={
                   <button
                     onClick={() => setShowTerminal((v) => !v)}
-                    className={`p-1 rounded transition-colors ${showTerminal ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800'}`}
+                    className={`p-1 rounded transition-colors ${showTerminal ? 'text-emerald-400 bg-emerald-500/10' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800'}`}
                     title={showTerminal ? 'Hide terminal' : 'Open terminal'}
                   >
                     <span className="material-symbols-outlined text-[16px]">terminal</span>

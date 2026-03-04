@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { useSettings } from '#/hooks/use-settings'
 import { Button } from '#/components/ui/button'
 import {
   CommandDialog,
@@ -63,8 +64,9 @@ function podKey(pod: PodItem): string {
 }
 
 export function LogPodSearchDialog({ open, onOpenChange, onSelect }: LogPodSearchDialogProps) {
+  const { settings } = useSettings()
   const [search, setSearch] = useState('')
-  const [namespace, setNamespace] = useState('default')
+  const [namespace, setNamespace] = useState(settings.defaultNamespace || 'default')
   const [selected, setSelected] = useState<Set<string>>(new Set())
   useEffect(() => {
     if (open) {

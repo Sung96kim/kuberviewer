@@ -427,7 +427,7 @@ function NamespaceDetailPage() {
             {labels.map(([k, v]) => (
               <span
                 key={k}
-                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-border-light dark:border-border-dark"
+                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 dark:bg-surface-highlight text-slate-500 dark:text-slate-400 border border-border-light dark:border-border-dark"
               >
                 {k}={v}
               </span>
@@ -576,7 +576,7 @@ function NamespaceDetailPage() {
             <select
               value={eventFilter}
               onChange={(e) => setEventFilter(e.target.value as EventFilter)}
-              className="px-3 py-1.5 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-xs font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+              className="px-3 py-1.5 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-xs font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
             >
               <option value="All">All Types</option>
               <option value="Warning">Warning</option>
@@ -592,7 +592,7 @@ function NamespaceDetailPage() {
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+            <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
               <tr>
                 <th className="px-6 py-3">Type</th>
                 <th className="px-6 py-3">Reason</th>
@@ -626,7 +626,7 @@ function NamespaceDetailPage() {
                   const linkPath = getResourceLinkPath(objectKind, objectName, objectNamespace)
 
                   return (
-                    <tr key={event.metadata.name} className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <tr key={event.metadata.name} className="hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                       <td className="px-6 py-3">
                         <EventTypeBadge type={event.type} />
                       </td>

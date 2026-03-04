@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useResourceList } from '#/hooks/use-resource-list'
+import { useSettings } from '#/hooks/use-settings'
 import { relativeTime } from '#/lib/time'
 import { Popover, PopoverTrigger, PopoverContent } from '#/components/ui/popover'
 import { Button } from '#/components/ui/button'
@@ -94,6 +95,7 @@ function getReasonColor(reason: string): string {
 export function NotificationCenter() {
   const [open, setOpen] = useState(false)
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
+  const { settings } = useSettings()
 
   const { data: eventsData } = useResourceList({
     group: '',
@@ -131,7 +133,7 @@ export function NotificationCenter() {
 
   const warningEvents = useMemo(() => {
     const events = (eventsData?.items ?? []) as unknown as KubeEvent[]
-    const cutoff = Date.now() - 30 * 60 * 1000
+    const cutoff = Date.now() - settings.notificationWindowMinutes * 60 * 1000
     return events
       .filter(e => e.type === 'Warning')
       .filter(e => {
@@ -152,7 +154,7 @@ export function NotificationCenter() {
         return bTs - aTs
       })
       .slice(0, 50)
-  }, [eventsData, dismissedIds, healthyPodKeys, allPodKeys])
+  }, [eventsData, dismissedIds, healthyPodKeys, allPodKeys, settings.notificationWindowMinutes])
 
   const badPods = useMemo(() => {
     const pods = (podsData?.items ?? []) as unknown as KubePod[]
@@ -162,7 +164,8 @@ export function NotificationCenter() {
       .filter(entry => !dismissedIds.has(entry.pod.metadata?.uid))
   }, [podsData, dismissedIds])
 
-  const totalCount = badPods.length + warningEvents.length
+  const notificationsDisabled = !settings.notificationsEnabled
+  const totalCount = notificationsDisabled ? 0 : badPods.length + warningEvents.length
 
   const handleClear = () => {
     const ids = new Set(dismissedIds)
@@ -175,7 +178,7 @@ export function NotificationCenter() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"
+          className="relative p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-surface-hover text-slate-500 dark:text-slate-400 transition-colors"
           title="Notifications"
         >
           <span className="material-symbols-outlined">notifications</span>
@@ -197,7 +200,14 @@ export function NotificationCenter() {
         </div>
 
         <div className="max-h-[500px] overflow-y-auto">
-          {totalCount === 0 && (
+          {notificationsDisabled && (
+            <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500">
+              <span className="material-symbols-outlined text-[32px] mb-2">notifications_off</span>
+              <p className="text-sm font-medium">Notifications disabled</p>
+              <p className="text-xs mt-0.5">Enable in Settings</p>
+            </div>
+          )}
+          {!notificationsDisabled && totalCount === 0 && (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400 dark:text-slate-500">
               <span className="material-symbols-outlined text-[32px] mb-2">check_circle</span>
               <p className="text-sm font-medium">All clear</p>
@@ -207,7 +217,7 @@ export function NotificationCenter() {
 
           {badPods.length > 0 && (
             <div>
-              <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900/50 border-b border-border-light dark:border-border-dark">
+              <div className="px-4 py-2 bg-slate-50 dark:bg-background-dark/50 border-b border-border-light dark:border-border-dark">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[14px] text-amber-500">warning</span>
                   Pod Issues ({badPods.length})
@@ -221,7 +231,7 @@ export function NotificationCenter() {
                     to="/resources/$"
                     params={{ _splat: linkPath }}
                     onClick={() => setOpen(false)}
-                    className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-border-light dark:border-border-dark last:border-b-0"
+                    className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-surface-hover/50 transition-colors border-b border-border-light dark:border-border-dark last:border-b-0"
                   >
                     <div className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${getReasonColor(reason)}`} />
                     <div className="min-w-0 flex-1">
@@ -243,7 +253,7 @@ export function NotificationCenter() {
 
           {warningEvents.length > 0 && (
             <div>
-              <div className="px-4 py-2 bg-slate-50 dark:bg-slate-900/50 border-b border-border-light dark:border-border-dark">
+              <div className="px-4 py-2 bg-slate-50 dark:bg-background-dark/50 border-b border-border-light dark:border-border-dark">
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                   <span className="material-symbols-outlined text-[14px] text-amber-500">warning</span>
                   Warning Events ({warningEvents.length})
@@ -257,7 +267,7 @@ export function NotificationCenter() {
                 )
                 const ts = event.lastTimestamp || event.metadata?.creationTimestamp
                 const content = (
-                  <div className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border-b border-border-light dark:border-border-dark last:border-b-0">
+                  <div className="flex items-start gap-3 px-4 py-2.5 hover:bg-slate-50 dark:hover:bg-surface-hover/50 transition-colors border-b border-border-light dark:border-border-dark last:border-b-0">
                     <span className="material-symbols-outlined text-[16px] text-amber-500 mt-0.5 shrink-0">error</span>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">

@@ -284,7 +284,7 @@ function NodesPage() {
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-3 py-2 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+          className="px-3 py-2 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
         >
           <option value="All">All Roles</option>
           {allRoles.map((role) => (
@@ -294,7 +294,7 @@ function NodesPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-surface-light dark:bg-slate-800 border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
+          className="px-3 py-2 bg-surface-light dark:bg-surface-highlight border border-border-light dark:border-border-dark rounded-lg text-sm font-medium focus:ring-1 focus:ring-primary focus:border-primary outline-none"
         >
           <option value="All">All Statuses</option>
           {allStatuses.map((s) => (
@@ -312,7 +312,7 @@ function NodesPage() {
       {!isError && <div className="bg-surface-light dark:bg-surface-dark rounded-xl border border-border-light dark:border-border-dark shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 dark:bg-slate-800/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
+            <thead className="bg-slate-50 dark:bg-surface-highlight/50 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 font-semibold">
               <tr>
                 <th className="px-6 py-4">Name</th>
                 <th className="px-6 py-4">Status</th>
@@ -343,10 +343,10 @@ function NodesPage() {
                   const memoryValues = getMemoryBar(node, nodeUsage)
 
                   return (
-                    <tr key={node.metadata.name} className="group hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+                    <tr key={node.metadata.name} className="group hover:bg-slate-50 dark:hover:bg-surface-hover/30 transition-colors">
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="p-1.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                          <div className="p-1.5 rounded bg-slate-100 dark:bg-surface-highlight text-slate-500 dark:text-slate-400">
                             <span className="material-symbols-outlined text-[20px]">dns</span>
                           </div>
                           <Link
