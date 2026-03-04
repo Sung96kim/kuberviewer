@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, type ReactNode } from 'react'
+import { NotificationCenter } from '#/components/layout/NotificationCenter'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useContexts, useSwitchContext } from '#/hooks/use-contexts'
@@ -262,9 +263,7 @@ export function Header() {
         </Popover>
 
         <div className="flex items-center gap-2">
-          <button className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors">
-            <span className="material-symbols-outlined">notifications</span>
-          </button>
+          <NotificationCenter />
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors"

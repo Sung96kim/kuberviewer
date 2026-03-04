@@ -140,7 +140,7 @@ function MetricsChart({
         <span className="text-xs text-slate-500 ml-auto">{unit}</span>
       </div>
       <div className="h-64">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <AreaChart data={data}>
             <defs>
               {series.map((s, i) => (

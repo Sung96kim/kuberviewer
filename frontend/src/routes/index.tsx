@@ -656,7 +656,7 @@ function PodStatusChart({ data, isLoading, isError, isFetching }: { data: KubeLi
     <ChartCard title="Pod Status Distribution" icon="donut_large" iconColor="text-emerald-500" isFetching={isFetching}>
       <div className="h-56 flex items-center">
         <div className="flex-1 h-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0}>
             <PieChart>
               <Pie
                 data={chartData}
@@ -697,7 +697,7 @@ function NamespacePodChart({ data, isLoading, isError, isFetching }: { data: Kub
   return (
     <ChartCard title="Pods by Namespace" icon="folder" iconColor="text-blue-500" isFetching={isFetching}>
       <div className="h-56">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <BarChart data={nsCounts} layout="vertical" margin={{ left: 0, right: 16, top: 0, bottom: 0 }}>
             <XAxis type="number" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
             <YAxis
@@ -733,7 +733,7 @@ function NodeResourceChart({ nodes, metricsItems, isLoading, isError, isFetching
   return (
     <ChartCard title="Node Resource Usage" icon="dns" iconColor="text-blue-500" isFetching={isFetching}>
       <div className="h-72">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <BarChart data={nodeData} margin={{ left: 0, right: 16, top: 8, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,0.15)" vertical={false} />
             <XAxis
@@ -801,7 +801,7 @@ function TrendChart({ title, icon, iconColor, data, isLoading, isFetching, forma
         <span className="text-xs text-slate-400 ml-auto">{unit}</span>
       </div>
       <div className="h-48">
-        <ResponsiveContainer width="100%" height="100%">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
           <AreaChart data={data}>
             <defs>
               <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
