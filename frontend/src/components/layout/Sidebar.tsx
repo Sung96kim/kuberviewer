@@ -141,10 +141,21 @@ const SidebarGroup = memo(function SidebarGroup({ group }: { group: ResourceGrou
   const [open, setOpen] = useState(!COLLAPSED_BY_DEFAULT.has(group.label))
   const toggle = useCallback(() => setOpen((p) => !p), [])
 
-  const listable = useMemo(
-    () => group.resources.filter((r) => r.verbs.includes('list')),
-    [group.resources],
-  )
+  const listable = useMemo(() => {
+    const items = group.resources.filter((r) => r.verbs.includes('list'))
+    if (group.label === 'Workloads') {
+      const order = ['Pod', 'Deployment', 'CronJob', 'Job', 'ReplicaSet']
+      items.sort((a, b) => {
+        const ai = order.indexOf(a.kind)
+        const bi = order.indexOf(b.kind)
+        if (ai !== -1 && bi !== -1) return ai - bi
+        if (ai !== -1) return -1
+        if (bi !== -1) return 1
+        return a.kind.localeCompare(b.kind)
+      })
+    }
+    return items
+  }, [group.resources, group.label])
 
   return (
     <div className="mt-4">
