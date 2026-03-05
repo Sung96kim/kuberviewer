@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '#/components/ui/dialog'
+import Editor from '@monaco-editor/react'
 import { api } from '#/api'
 import { useResourceList } from '#/hooks/use-resource-list'
 import { TEMPLATES, NS_PLACEHOLDER, resolveResource } from '#/lib/resource-templates'
@@ -406,14 +407,37 @@ function CreateResourcePage() {
         </div>
 
         <div className="flex-1 flex flex-col bg-background-dark overflow-hidden">
-          <div className="flex-1 overflow-auto relative">
-            <textarea
+          <div className="flex-1 overflow-hidden relative">
+            <Editor
+              language="yaml"
+              theme="kuberviewer"
               value={content}
-              onChange={(e) => handleContentChange(e.target.value)}
-              spellCheck={false}
-              className="w-full h-full min-h-full p-4 font-mono text-sm leading-relaxed text-[#d4d4d4] bg-transparent resize-none outline-none whitespace-pre"
+              onChange={(value) => handleContentChange(value ?? '')}
+              beforeMount={(monaco) => {
+                monaco.editor.defineTheme('kuberviewer', {
+                  base: 'vs-dark',
+                  inherit: true,
+                  rules: [],
+                  colors: { 'editor.background': '#11111B' },
+                })
+                monaco.editor.setTheme('kuberviewer')
+              }}
+              options={{
+                minimap: { enabled: false },
+                fontSize: 13,
+                lineNumbers: 'on',
+                scrollBeyondLastLine: false,
+                tabSize: 2,
+                automaticLayout: true,
+                wordWrap: 'on',
+                padding: { top: 16 },
+                renderLineHighlight: 'line',
+                overviewRulerLanes: 0,
+                hideCursorInOverviewRuler: true,
+                scrollbar: { verticalScrollbarSize: 8, horizontalScrollbarSize: 8 },
+              }}
             />
-            <div className="absolute right-4 top-4 flex flex-col gap-2">
+            <div className="absolute right-6 top-4 flex flex-col gap-2 z-10">
               <button
                 onClick={openSaveDialog}
                 className="p-1.5 rounded-lg border border-border-dark bg-surface-highlight/60 hover:bg-surface-highlight hover:border-slate-500 transition-colors group/btn"
